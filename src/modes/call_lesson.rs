@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use serenity::model::channel::Message;
-use serenity::model::prelude::{GuildId, ChannelId};
-use serenity::prelude::Context;
-use serenity::model::channel::ReactionType;
 use rand::Rng;
+use serenity::model::channel::Message;
+use serenity::model::channel::ReactionType;
+use serenity::model::prelude::{ChannelId, GuildId};
+use serenity::prelude::Context;
 
 pub struct CallLessonModeState {
     speed_range: std::ops::Range<f32>,
@@ -22,7 +22,11 @@ pub struct CallLessonModeState {
 }
 
 impl CallLessonModeState {
-    pub fn new(speed_range: std::ops::Range<f32>, freq_range: std::ops::Range<f32>, txt_ch: ChannelId) -> Self {
+    pub fn new(
+        speed_range: std::ops::Range<f32>,
+        freq_range: std::ops::Range<f32>,
+        txt_ch: ChannelId,
+    ) -> Self {
         Self {
             speed_range,
             freq_range,
@@ -44,9 +48,12 @@ impl Drop for CallLessonModeState {
     }
 }
 
-pub async fn start(ctx: &Context, guild: GuildId, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
-    let man = songbird::get(&ctx).await
-        .expect("init songbird").clone();
+pub async fn start(
+    ctx: &Context,
+    guild: GuildId,
+    state: Arc<Mutex<CallLessonModeState>>,
+) -> Result<(), ()> {
+    let man = songbird::get(&ctx).await.expect("init songbird").clone();
 
     let call = man.get(guild).ok_or_else(|| log::error!("not in call"))?;
     play_next(call, state).await?;
@@ -54,16 +61,26 @@ pub async fn start(ctx: &Context, guild: GuildId, state: Arc<Mutex<CallLessonMod
 }
 
 pub fn end(state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
-    state.lock().map_err(|_| log::error!("lock failed"))?
-        .next_ftr_token.take().map(|t| t.cancel());
+    state
+        .lock()
+        .map_err(|_| log::error!("lock failed"))?
+        .next_ftr_token
+        .take()
+        .map(|t| t.cancel());
     Ok(())
 }
 
-pub async fn on_message(ctx: &Context, msg: &Message, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
+pub async fn on_message(
+    ctx: &Context,
+    msg: &Message,
+    state: Arc<Mutex<CallLessonModeState>>,
+) -> Result<(), ()> {
     let (s, ans, answered) = {
         let st = state.lock().map_err(|_| log::error!("lock failed"))?;
 
-        if msg.channel_id != st.txt_ch { return Ok(()); }
+        if msg.channel_id != st.txt_ch {
+            return Ok(());
+        }
 
         let s = msg.content.to_uppercase();
 
@@ -79,15 +96,16 @@ pub async fn on_message(ctx: &Context, msg: &Message, state: Arc<Mutex<CallLesso
     };
 
     if s == ans {
-        msg.react(&ctx.http,
-                if answered {
-                    ReactionType::from('⭕')
-                } else {
-                    ReactionType::from('🥇')
-                }
-            ).await
-            .map_err(|_| log::error!("react failed"))?;
-
+        msg.react(
+            &ctx.http,
+            if answered {
+                ReactionType::from('⭕')
+            } else {
+                ReactionType::from('🥇')
+            },
+        )
+        .await
+        .map_err(|_| log::error!("react failed"))?;
 
         let next_token = {
             let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
@@ -106,12 +124,11 @@ pub async fn on_message(ctx: &Context, msg: &Message, state: Arc<Mutex<CallLesso
         };
 
         if let Some(token) = next_token {
-            let man = songbird::get(&ctx).await
-                .expect("init songbird").clone();
+            let man = songbird::get(&ctx).await.expect("init songbird").clone();
 
-            let call = man.get(
-                msg.guild_id.ok_or_else(|| log::error!("no guild"))?
-                ).ok_or_else(|| log::error!("not in call"))?;
+            let call = man
+                .get(msg.guild_id.ok_or_else(|| log::error!("no guild"))?)
+                .ok_or_else(|| log::error!("not in call"))?;
 
             tokio::spawn(async move {
                 tokio::select! {
@@ -126,14 +143,18 @@ pub async fn on_message(ctx: &Context, msg: &Message, state: Arc<Mutex<CallLesso
                 Ok::<(), ()>(())
             });
         }
-
     } else {
-        msg.react(&ctx.http, ReactionType::from('❌')).await.map_err(|_| log::error!("react failed"))?;
+        msg.react(&ctx.http, ReactionType::from('❌'))
+            .await
+            .map_err(|_| log::error!("react failed"))?;
     }
     Ok(())
 }
 
-async fn play(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
+async fn play(
+    call: Arc<serenity::prelude::Mutex<songbird::Call>>,
+    state: Arc<Mutex<CallLessonModeState>>,
+) -> Result<(), ()> {
     let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
     let speed = st.last_speed;
     let freq = st.last_freq;
@@ -142,7 +163,6 @@ async fn play(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mu
         None => return Ok(()),
         Some(s) => " ".to_string() + &s, // to keep margin between last playback
     };
-
 
     st.next_ftr_token.take().map(|t| t.cancel());
     let token = tokio_util::sync::CancellationToken::new();
@@ -172,7 +192,10 @@ async fn play(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mu
     Ok(())
 }
 
-pub async fn play_next(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
+pub async fn play_next(
+    call: Arc<serenity::prelude::Mutex<songbird::Call>>,
+    state: Arc<Mutex<CallLessonModeState>>,
+) -> Result<(), ()> {
     let next_str = generate_callsign();
 
     {
@@ -199,31 +222,32 @@ fn rand_char(s: &str) -> &str {
 fn generate_callsign() -> String {
     // TODO: improve algorithm
     let s = match rand::random::<u8>() {
-        0..=13 => "7".to_string()
+        0..=13 => {
+            "7".to_string()
                 + rand_char("JKLMN")
                 + rand_char(NUM)
                 + rand_char(ALPHA)
                 + rand_char(ALPHA)
-                + rand_char(ALPHA),
-        14 => "8".to_string()
+                + rand_char(ALPHA)
+        }
+        14 => {
+            "8".to_string()
                 + rand_char("JN")
                 + rand_char(NUM)
                 + rand_char(ALNUM)
                 + rand_char(ALNUM)
-                + rand_char(ALNUM),
-        15..=18 => "JA".to_owned()
-                + rand_char(NUM)
-                + rand_char(ALPHA)
-                + rand_char(ALPHA),
-        19 => "JR6".to_owned()
-                + rand_char(ALPHA)
-                + rand_char(ALPHA),
-        20..=255 => "J".to_string()
+                + rand_char(ALNUM)
+        }
+        15..=18 => "JA".to_owned() + rand_char(NUM) + rand_char(ALPHA) + rand_char(ALPHA),
+        19 => "JR6".to_owned() + rand_char(ALPHA) + rand_char(ALPHA),
+        20..=255 => {
+            "J".to_string()
                 + rand_char(JA_PRF)
                 + rand_char(NUM)
                 + rand_char(ALPHA)
                 + rand_char(ALPHA)
-                + rand_char(ALPHA),
+                + rand_char(ALPHA)
+        }
     };
 
     if rand::random::<u8>() < 50 {

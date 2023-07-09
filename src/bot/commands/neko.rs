@@ -1,6 +1,6 @@
-use serenity::model::prelude::command::{CommandOptionType, Command};
-use serenity::model::prelude::interaction::application_command::CommandDataOption;
 use crate::bot::commands::get_value_i64;
+use serenity::model::prelude::command::{Command, CommandOptionType};
+use serenity::model::prelude::interaction::application_command::CommandDataOption;
 
 impl crate::bot::Bot {
     pub async fn register_command_neko(&self, ctx: &serenity::client::Context) -> Result<(), ()> {
@@ -17,7 +17,8 @@ impl crate::bot::Bot {
                         .max_int_value(32)
                         .required(false)
                 })
-        }).await
+        })
+        .await
         .map_err(|e| log::error!("error: {:?}", e))?;
         Ok(())
     }

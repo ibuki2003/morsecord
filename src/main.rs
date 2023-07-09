@@ -5,8 +5,8 @@ use serenity::prelude::Client;
 
 use songbird::SerenityInit;
 
-use serde::{Deserialize, Serialize};
 use morsecord::bot::Bot;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 struct Token {

@@ -1,8 +1,8 @@
-use songbird::input::{Input, reader::MediaSource};
+use songbird::input::{reader::MediaSource, Input};
 
 pub struct CWAudioPCM {
-    epos: usize, // current position in the events
-    spos: usize, // current position in a event
+    epos: usize,                // current position in the events
+    spos: usize,                // current position in a event
     events: Vec<(usize, bool)>, // (pos(samples), on)
 
     omega: f32, // angular frequency
@@ -38,14 +38,20 @@ impl CWAudioPCM {
     }
 
     pub fn to_input(self) -> Input {
-        Input::float_pcm(false, songbird::input::reader::Reader::Extension(std::boxed::Box::new(self)))
+        Input::float_pcm(
+            false,
+            songbird::input::reader::Reader::Extension(std::boxed::Box::new(self)),
+        )
     }
 }
 
 impl MediaSource for CWAudioPCM {
-    fn is_seekable(&self) -> bool { false }
-    fn byte_len(&self) -> Option<u64> { None }
-
+    fn is_seekable(&self) -> bool {
+        false
+    }
+    fn byte_len(&self) -> Option<u64> {
+        None
+    }
 }
 
 impl std::io::Read for CWAudioPCM {
@@ -60,9 +66,10 @@ impl std::io::Read for CWAudioPCM {
             let of = s.len() <= c;
 
             if on {
-                s[..c].iter_mut().enumerate().for_each(|(i, x)| {
-                    *x = (self.omega * (self.spos + i) as f32).sin()
-                });
+                s[..c]
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(i, x)| *x = (self.omega * (self.spos + i) as f32).sin());
             } else {
                 s[..c].iter_mut().for_each(|x| *x = 0.);
             }
@@ -73,14 +80,16 @@ impl std::io::Read for CWAudioPCM {
                 self.spos = 0;
             }
 
-            if self.spos < t { break; }
-
+            if self.spos < t {
+                break;
+            }
         }
         Ok(s.as_ptr() as usize - head as usize)
     }
 }
 
 impl std::io::Seek for CWAudioPCM {
-    fn seek(&mut self, _pos: std::io::SeekFrom) -> std::io::Result<u64> { unreachable!(); }
+    fn seek(&mut self, _pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        unreachable!();
+    }
 }
-
