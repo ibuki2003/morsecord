@@ -992,12 +992,14 @@ dependencies = [
 name = "morsecord"
 version = "0.1.0"
 dependencies = [
+ "rand",
  "serde",
  "serde_json",
  "serenity",
  "songbird",
  "sqlx",
  "tokio",
+ "tokio-util",
  "wav",
 ]
 

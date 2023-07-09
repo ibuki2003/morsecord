@@ -18,6 +18,7 @@ use morsecord::commands;
 
 enum BotStateMode {
     Normal,
+    CallsignLesson(Arc<Mutex<morsecord::modes::call_lesson::CallLessonModeState>>),
 }
 
 struct BotState {
@@ -51,6 +52,22 @@ impl EventHandler for Bot {
 
         commands::vc::register(&ctx).await;
         commands::cw::register(&ctx).await;
+
+        Command::create_global_application_command(&ctx.http, |command| {
+            command
+                .name("cw-start-lesson")
+                .description("start callsign lesson")
+                .create_option(|option| { option.name("min_speed").description("minimum speed").kind(serenity::model::prelude::command::CommandOptionType::Number).min_number_value(5.0).required(false) })
+                .create_option(|option| { option.name("max_speed").description("maximum speed").kind(serenity::model::prelude::command::CommandOptionType::Number).min_number_value(5.0).required(false) })
+                .create_option(|option| { option.name("min_freq").description("minimum freq").kind(serenity::model::prelude::command::CommandOptionType::Number).min_number_value(200.0).required(false) })
+                .create_option(|option| { option.name("max_freq").description("maximum freq").kind(serenity::model::prelude::command::CommandOptionType::Number).min_number_value(200.0).required(false) })
+        }).await.unwrap();
+
+        Command::create_global_application_command(&ctx.http, |command| {
+            command
+                .name("cw-end-lesson")
+                .description("end callsign lesson")
+        }).await.unwrap();
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
@@ -62,6 +79,56 @@ impl EventHandler for Bot {
                 "cw-join" => commands::vc::run_join(&ctx, &command).await,
                 "cw-leave" => commands::vc::run_leave(&ctx, &command).await,
                 "cw-speed" => commands::cw::run_speed(&ctx, &command, &self.db).await,
+                "cw-start-lesson" => {
+                    let mut min_speed = 15.0;
+                    let mut max_speed = 30.0;
+                    let mut min_freq = 400.0;
+                    let mut max_freq = 1000.0;
+
+                    command.data.options.iter().for_each(|x| {
+                        match x.name.as_str() {
+                            "min_speed" => min_speed = x.value.as_ref().unwrap().as_f64().unwrap() as f32,
+                            "max_speed" => max_speed = x.value.as_ref().unwrap().as_f64().unwrap() as f32,
+                            "min_freq" => min_freq = x.value.as_ref().unwrap().as_f64().unwrap() as f32,
+                            "max_freq" => max_freq = x.value.as_ref().unwrap().as_f64().unwrap() as f32,
+                            _ => (),
+                        };
+                    });
+
+                    let speed_range = min_speed..max_speed;
+                    let freq_range = min_freq..max_freq;
+                    let state = Arc::new(Mutex::new(morsecord::modes::call_lesson::CallLessonModeState::new(speed_range, freq_range, command.channel_id)));
+                    morsecord::modes::call_lesson::start(&ctx, command.guild_id.unwrap(), state.clone()).await;
+                    let old = self.states.lock().unwrap().insert(command.guild_id.unwrap().0, Arc::new(Mutex::new(BotState {
+                        mode: BotStateMode::CallsignLesson(state),
+                    })));
+
+                    if let Some(state) = old {
+                        match &state.lock().unwrap().mode {
+                            BotStateMode::Normal => {},
+                            BotStateMode::CallsignLesson(s) => {
+                                morsecord::modes::call_lesson::end(s.clone());
+                            },
+                        }
+                    }
+
+                    "let's start lesson".to_string()
+                },
+                "cw-end-lesson" => {
+                    let old = self.states.lock().unwrap().insert(command.guild_id.unwrap().0, Arc::new(Mutex::new(BotState {
+                        mode: BotStateMode::Normal,
+                    })));
+                    if let Some(state) = old {
+                        match &state.lock().unwrap().mode {
+                            BotStateMode::Normal => {},
+                            BotStateMode::CallsignLesson(s) => {
+                                morsecord::modes::call_lesson::end(s.clone());
+                            },
+                        }
+                    }
+
+                    "good job!".to_string()
+                },
                 _ => "not implemented :(".to_string(),
             };
 
@@ -81,7 +148,7 @@ impl EventHandler for Bot {
     async fn message(&self, ctx: Context, message: Message) {
         {
             // FIXME: match statement gives error "future cannot be sent between threads safely"
-            let is_normal = {
+            let (is_normal, csls) = {
                 let mut states = self.states.lock().unwrap();
                 let state = states.entry(message.guild_id.unwrap().0).or_default().clone();
                 drop(states);
@@ -93,11 +160,20 @@ impl EventHandler for Bot {
                     _ => false,
                 };
 
-                is_normal
+                let csls = match mode {
+                    BotStateMode::CallsignLesson(s) => Some(s.clone()),
+                    _ => None,
+                };
+
+                (is_normal, csls)
             };
 
             if is_normal {
                 morsecord::modes::normal::on_message(&ctx, &message, &self.db).await;
+            }
+
+            if let Some(csls) = csls {
+                morsecord::modes::call_lesson::on_message(&ctx, &message, csls.clone()).await;
             }
         }
     }
