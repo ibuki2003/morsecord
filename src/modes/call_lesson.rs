@@ -113,9 +113,8 @@ pub async fn on_message(
             st.answered = true;
 
             if !st.is_advancing {
-                st.next_ftr_token.take().map(|t| t.cancel());
                 let token = tokio_util::sync::CancellationToken::new();
-                st.next_ftr_token = Some(token.clone());
+                st.next_ftr_token.replace(token.clone()).map(|t| t.cancel());
                 st.is_advancing = true;
                 Some(token)
             } else {
@@ -132,9 +131,7 @@ pub async fn on_message(
 
             tokio::spawn(async move {
                 tokio::select! {
-                    _ = token.cancelled() => {
-                        state.lock().map_err(|_| log::error!("lock failed"))?.next_ftr_token = None;
-                    },
+                    _ = token.cancelled() => {},
                     _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
                         state.lock().map_err(|_| log::error!("lock failed"))?.is_advancing = false;
                         play_next(call, state.clone()).await?;
@@ -164,9 +161,8 @@ async fn play(
         Some(s) => " ".to_string() + &s, // to keep margin between last playback
     };
 
-    st.next_ftr_token.take().map(|t| t.cancel());
     let token = tokio_util::sync::CancellationToken::new();
-    st.next_ftr_token = Some(token.clone());
+    st.next_ftr_token.replace(token.clone()).map(|t| t.cancel());
 
     drop(st);
 
@@ -179,10 +175,7 @@ async fn play(
             }
 
             tokio::select! {
-                _ = token.cancelled() => {
-                    state.lock().map_err(|_| log::error!("lock failed"))?.next_ftr_token = None;
-                    break;
-                }
+                _ = token.cancelled() => { break; }
                 _ = tokio::time::sleep(std::time::Duration::from_secs(20)) => {}
             };
         }
