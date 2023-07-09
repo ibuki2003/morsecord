@@ -44,99 +44,111 @@ impl Drop for CallLessonModeState {
     }
 }
 
-pub async fn start(ctx: &Context, guild: GuildId, state: Arc<Mutex<CallLessonModeState>>) {
+pub async fn start(ctx: &Context, guild: GuildId, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
     let man = songbird::get(&ctx).await
         .expect("init songbird").clone();
 
-    let call = man.get(guild).unwrap();
-    play_next(call, state).await;
+    let call = man.get(guild).ok_or_else(|| log::error!("not in call"))?;
+    play_next(call, state).await?;
+    Ok(())
 }
 
-pub fn end(state: Arc<Mutex<CallLessonModeState>>) {
-    state.lock().unwrap().next_ftr_token.take().map(|t| t.cancel());
+pub fn end(state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
+    state.lock().map_err(|_| log::error!("lock failed"))?
+        .next_ftr_token.take().map(|t| t.cancel());
+    Ok(())
 }
 
-pub async fn on_message(ctx: &Context, msg: &Message, state: Arc<Mutex<CallLessonModeState>>) {
-    if msg.channel_id != state.lock().unwrap().txt_ch { return; }
+pub async fn on_message(ctx: &Context, msg: &Message, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
+    let (s, ans, answered) = {
+        let st = state.lock().map_err(|_| log::error!("lock failed"))?;
 
-    let s = msg.content.to_uppercase();
+        if msg.channel_id != st.txt_ch { return Ok(()); }
 
-    let ans = state.lock().unwrap().last_str.clone();
-    let ans = match ans {
-        None => return,
-        Some(ans) => ans.to_uppercase(),
+        let s = msg.content.to_uppercase();
+
+        let ans = match &st.last_str {
+            None => return Ok(()),
+            Some(ans) => ans.to_uppercase(),
+        };
+
+        let answered = st.answered;
+
+        drop(st);
+        (s, ans, answered)
     };
 
     if s == ans {
         msg.react(&ctx.http,
-                if state.lock().unwrap().answered {
+                if answered {
                     ReactionType::from('⭕')
                 } else {
                     ReactionType::from('🥇')
                 }
-            ).await.unwrap();
+            ).await
+            .map_err(|_| log::error!("react failed"))?;
 
-        state.lock().unwrap().answered = true;
 
         let next_token = {
-            let mut s = state.lock().unwrap();
-            if !s.is_advancing {
-                s.next_ftr_token.take().map(|t| t.cancel());
+            let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
+
+            st.answered = true;
+
+            if !st.is_advancing {
+                st.next_ftr_token.take().map(|t| t.cancel());
                 let token = tokio_util::sync::CancellationToken::new();
-                s.next_ftr_token = Some(token.clone());
-                s.is_advancing = true;
+                st.next_ftr_token = Some(token.clone());
+                st.is_advancing = true;
                 Some(token)
             } else {
                 None
             }
         };
 
-        if next_token.is_some() {
-            let token = next_token.unwrap();
+        if let Some(token) = next_token {
             let man = songbird::get(&ctx).await
                 .expect("init songbird").clone();
 
-            let call = man.get(msg.guild_id.unwrap());
-            if let Some(call) = call {
+            let call = man.get(
+                msg.guild_id.ok_or_else(|| log::error!("no guild"))?
+                ).ok_or_else(|| log::error!("not in call"))?;
 
-                tokio::spawn(async move {
-                    tokio::select! {
-                        _ = token.cancelled() => {
-                            state.lock().unwrap().next_ftr_token = None;
-                        },
-                        _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
-                            state.lock().unwrap().is_advancing = false;
-                            play_next(call, state.clone()).await;
-                        },
-                    };
-                });
-            }
+            tokio::spawn(async move {
+                tokio::select! {
+                    _ = token.cancelled() => {
+                        state.lock().map_err(|_| log::error!("lock failed"))?.next_ftr_token = None;
+                    },
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
+                        state.lock().map_err(|_| log::error!("lock failed"))?.is_advancing = false;
+                        play_next(call, state.clone()).await?;
+                    },
+                };
+                Ok::<(), ()>(())
+            });
         }
 
     } else {
-        msg.react(&ctx.http, ReactionType::from('❌')).await.unwrap();
-        return;
+        msg.react(&ctx.http, ReactionType::from('❌')).await.map_err(|_| log::error!("react failed"))?;
     }
+    Ok(())
 }
 
-async fn play(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mutex<CallLessonModeState>>) {
-    let (speed, freq, s) = {
-        let state = state.lock().unwrap();
-        let speed = state.last_speed;
-        let freq = state.last_freq;
-        let s = &state.last_str;
-        let s = match s {
-            None => return,
-            Some(s) => " ".to_string() + &s, // to keep margin between last playback
-        };
-        (speed, freq, s)
+async fn play(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
+    let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
+    let speed = st.last_speed;
+    let freq = st.last_freq;
+    let s = &st.last_str;
+    let s = match s {
+        None => return Ok(()),
+        Some(s) => " ".to_string() + &s, // to keep margin between last playback
     };
 
 
-    state.lock().unwrap().next_ftr_token.take().map(|t| t.cancel());
-
+    st.next_ftr_token.take().map(|t| t.cancel());
     let token = tokio_util::sync::CancellationToken::new();
-    state.lock().unwrap().next_ftr_token = Some(token.clone());
+    st.next_ftr_token = Some(token.clone());
+
+    drop(st);
 
     tokio::spawn(async move {
         loop {
@@ -148,24 +160,27 @@ async fn play(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mu
 
             tokio::select! {
                 _ = token.cancelled() => {
-                    state.lock().unwrap().next_ftr_token = None;
+                    state.lock().map_err(|_| log::error!("lock failed"))?.next_ftr_token = None;
                     break;
                 }
                 _ = tokio::time::sleep(std::time::Duration::from_secs(20)) => {}
             };
         }
+        Ok::<(), ()>(())
     });
 
+    Ok(())
 }
 
-pub async fn play_next(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mutex<CallLessonModeState>>) {
+pub async fn play_next(call: Arc<serenity::prelude::Mutex<songbird::Call>>, state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
     let next_str = generate_callsign();
 
     {
-        let mut state = state.lock().unwrap();
+        let mut state = state.lock().map_err(|_| log::error!("lock failed"))?;
         state.last_str = Some(next_str.clone());
         state.last_speed = rand::thread_rng().gen_range(state.speed_range.clone());
         state.last_freq = rand::thread_rng().gen_range(state.freq_range.clone());
+        state.answered = false;
     }
 
     play(call, state).await
@@ -174,7 +189,7 @@ pub async fn play_next(call: Arc<serenity::prelude::Mutex<songbird::Call>>, stat
 const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const ALNUM: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const NUM: &'static str = "0123456789";
-const JA_PRF: &'static str = "ABCDEFGHJKLMNPQRS";
+const JA_PRF: &'static str = "ADEFGHJKLMNPQRS";
 
 fn rand_char(s: &str) -> &str {
     let i = rand::random::<usize>() % s.len();
