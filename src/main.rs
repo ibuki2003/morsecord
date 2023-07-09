@@ -79,6 +79,7 @@ impl EventHandler for Bot {
                 "cw-join" => commands::vc::run_join(&ctx, &command).await,
                 "cw-leave" => commands::vc::run_leave(&ctx, &command).await,
                 "cw-speed" => commands::cw::run_speed(&ctx, &command, &self.db).await,
+                "cw-freq" => commands::cw::run_freq(&ctx, &command, &self.db).await,
                 "cw-start-lesson" => {
                     let mut min_speed = 15.0;
                     let mut max_speed = 30.0;
@@ -209,7 +210,7 @@ async fn main() {
         .expect("failed to connect to sqlite3");
 
     // migration
-    sqlx::query("create table if not exists cw_speed (id text primary key, speed REAL not null)")
+    sqlx::query("create table if not exists cw_speed (id text primary key, speed REAL not null default 20, freq REAL not null default 800)")
         .execute(&db)
         .await
         .expect("failed to create table");

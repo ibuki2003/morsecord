@@ -12,7 +12,7 @@ pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) {
         .await
         .unwrap();
 
-    let speed = speed_cfgs.first().map(|row| row.get::<f32, _>("speed")).unwrap_or(20.0);
+    let (speed, freq) = speed_cfgs.first().map(|row| (row.get::<f32, _>("speed"), row.get::<f32, _>("freq"))).unwrap_or((20.0, 800.0));
 
     let man = songbird::get(&ctx).await
         .expect("init songbird").clone();
@@ -20,7 +20,7 @@ pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) {
     let handler = man.get(msg.guild_id.unwrap());
     if let Some(handler) = handler {
         let mut handler = handler.lock().await;
-        let source = crate::cw_audio::CWAudioPCM::new(s.to_string(), speed, 800.0).to_input();
+        let source = crate::cw_audio::CWAudioPCM::new(s.to_string(), speed, freq).to_input();
         handler.play_source(source);
     }
 }
