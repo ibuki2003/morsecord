@@ -43,7 +43,7 @@ impl CallLessonModeState {
 
 impl Drop for CallLessonModeState {
     fn drop(&mut self) {
-        println!("dropped, {:?}", self.next_ftr_token);
+        log::info!("lesson state dropped, {:?}", self.next_ftr_token);
         self.next_ftr_token.take().map(|t| t.cancel());
     }
 }
@@ -190,6 +190,7 @@ pub async fn play_next(
     state: Arc<Mutex<CallLessonModeState>>,
 ) -> Result<(), ()> {
     let next_str = generate_callsign();
+    log::info!("next: {}", next_str);
 
     {
         let mut state = state.lock().map_err(|_| log::error!("lock failed"))?;

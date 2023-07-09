@@ -20,8 +20,31 @@ fn get_token(file_name: &str) -> Result<String, Box<dyn std::error::Error>> {
     Ok(t.token)
 }
 
+fn init_logger(){
+    let base_config = fern::Dispatch::new();
+
+    let stderr_config = fern::Dispatch::new()
+        .level(log::LevelFilter::Warn)
+        .level_for("morsecord", log::LevelFilter::Info)
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%H:%M:%S]"),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .chain(std::io::stderr());
+
+    base_config
+        .chain(stderr_config)
+        .apply().unwrap();
+}
+
 #[tokio::main]
 async fn main() {
+    init_logger();
     let token = get_token("config.json").expect("no token found");
     let framework = StandardFramework::new()
         // .configure(|c| c.prefix("~")) // コマンドプレフィックス
@@ -55,10 +78,10 @@ async fn main() {
 
     tokio::spawn(async move {
         if let Err(why) = client.start().await {
-            println!("Client error: {:?}", why);
+            log::error!("Client error: {:?}", why);
         }
     });
 
     tokio::signal::ctrl_c().await.unwrap();
-    println!("Received Ctrl-C, shutting down.");
+    log::info!("Received Ctrl-C, shutting down.");
 }

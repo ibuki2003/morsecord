@@ -45,6 +45,7 @@ impl Bot {
             match &*state.lock().map_err(|_| log::error!("lock failed"))? {
                 BotStateMode::Normal => {}
                 BotStateMode::CallsignLesson(s) => {
+                    log::info!("terminating callsign lesson");
                     let _ = crate::modes::call_lesson::end(s.clone());
                 }
             }
@@ -59,7 +60,7 @@ impl EventHandler for Bot {
     async fn ready(&self, ctx: Context, ready: Ready) {
         ctx.set_activity(serenity::model::gateway::Activity::listening("7.074MHz"))
             .await;
-        println!("{} is connected!", ready.user.name);
+        log::info!("{} is connected!", ready.user.name);
 
         let _ = self.register_command_neko(&ctx).await;
         let _ = self.register_commands_vc(&ctx).await;
@@ -68,7 +69,7 @@ impl EventHandler for Bot {
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            // println!("Received command interaction: {:#?}", command);
+            log::info!("got command: {}", command.data.name);
 
             let content = match command.data.name.as_str() {
                 "neko" => self
@@ -109,7 +110,7 @@ impl EventHandler for Bot {
                 })
                 .await
             {
-                println!("Cannot respond to slash command: {}", why);
+                log::error!("Cannot respond to slash command: {}", why);
             }
         }
     }
@@ -118,6 +119,8 @@ impl EventHandler for Bot {
         if message.author.bot {
             return;
         }
+
+        log::info!("got message: {}", message.content);
 
         {
             // FIXME: match statement gives error "future cannot be sent between threads safely"
