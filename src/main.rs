@@ -60,7 +60,6 @@ impl EventHandler for Bot {
             let content = match command.data.name.as_str() {
                 "neko" => commands::neko::run(&command.data.options),
                 "cw-join" => commands::vc::run_join(&ctx, &command).await,
-                "cw-play" => commands::cw::run_play(&ctx, &command).await,
                 "cw-leave" => commands::vc::run_leave(&ctx, &command).await,
                 "cw-speed" => commands::cw::run_speed(&ctx, &command, &self.db).await,
                 _ => "not implemented :(".to_string(),
