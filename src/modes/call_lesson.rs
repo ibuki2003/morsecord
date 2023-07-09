@@ -211,7 +211,14 @@ fn generate_callsign() -> String {
                 + rand_char(ALNUM)
                 + rand_char(ALNUM)
                 + rand_char(ALNUM),
-        15..=255 => "J".to_string()
+        15..=18 => "JA".to_owned()
+                + rand_char(NUM)
+                + rand_char(ALPHA)
+                + rand_char(ALPHA),
+        19 => "JR6".to_owned()
+                + rand_char(ALPHA)
+                + rand_char(ALPHA),
+        20..=255 => "J".to_string()
                 + rand_char(JA_PRF)
                 + rand_char(NUM)
                 + rand_char(ALPHA)
