@@ -7,8 +7,8 @@ use serenity::model::prelude::{ChannelId, GuildId};
 use serenity::prelude::Context;
 
 pub struct CallLessonModeState {
-    speed_range: std::ops::Range<f32>,
-    freq_range: std::ops::Range<f32>,
+    speed_range: std::ops::RangeInclusive<f32>,
+    freq_range: std::ops::RangeInclusive<f32>,
 
     txt_ch: ChannelId,
 
@@ -23,8 +23,8 @@ pub struct CallLessonModeState {
 
 impl CallLessonModeState {
     pub fn new(
-        speed_range: std::ops::Range<f32>,
-        freq_range: std::ops::Range<f32>,
+        speed_range: std::ops::RangeInclusive<f32>,
+        freq_range: std::ops::RangeInclusive<f32>,
         txt_ch: ChannelId,
     ) -> Self {
         Self {
