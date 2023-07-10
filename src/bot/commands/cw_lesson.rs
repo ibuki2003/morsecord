@@ -37,8 +37,8 @@ impl crate::bot::Bot {
                 Ok(())
             })?;
 
-        let speed_range = min_speed..max_speed;
-        let freq_range = min_freq..max_freq;
+        let speed_range = min_speed..=max_speed;
+        let freq_range = min_freq..=max_freq;
         let gid = command.guild_id.ok_or("not in guild")?;
         let state = Arc::new(Mutex::new(
             crate::modes::call_lesson::CallLessonModeState::new(
