@@ -76,7 +76,7 @@ pub async fn on_message(
     state: Arc<Mutex<CallLessonModeState>>,
 ) -> Result<(), ()> {
     let (s, ans, answered) = {
-        let st = state.lock().map_err(|_| log::error!("lock failed"))?;
+        let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
 
         if msg.channel_id != st.txt_ch {
             return Ok(());
@@ -90,6 +90,9 @@ pub async fn on_message(
         };
 
         let answered = st.answered;
+        if s == ans {
+            st.answered = true;
+        }
 
         drop(st);
         (s, ans, answered)
@@ -109,8 +112,6 @@ pub async fn on_message(
 
         let next_token = {
             let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
-
-            st.answered = true;
 
             if !st.is_advancing {
                 let token = tokio_util::sync::CancellationToken::new();
