@@ -11,10 +11,10 @@ impl crate::bot::Bot {
         ctx: &Context,
         command: &ApplicationCommandInteraction,
     ) -> Result<String, String> {
-        let mut min_speed = 15.0;
-        let mut max_speed = 30.0;
-        let mut min_freq = 400.0;
-        let mut max_freq = 1000.0;
+        let mut min_speed = None;
+        let mut max_speed = None;
+        let mut min_freq = None;
+        let mut max_freq = None;
 
         command
             .data
@@ -28,14 +28,28 @@ impl crate::bot::Bot {
                         v.as_f64().ok_or("value is not f64".to_string())
                     })? as f32;
                 match x.name.as_str() {
-                    "min_speed" => min_speed = v,
-                    "max_speed" => max_speed = v,
-                    "min_freq" => min_freq = v,
-                    "max_freq" => max_freq = v,
+                    "min_speed" => min_speed = Some(v),
+                    "max_speed" => max_speed = Some(v),
+                    "min_freq" => min_freq = Some(v),
+                    "max_freq" => max_freq = Some(v),
                     _ => (),
                 };
                 Ok(())
             })?;
+
+        let min_speed = min_speed.unwrap_or(15.0_f32.min(max_speed.unwrap_or(std::f32::NAN)));
+        let max_speed = max_speed.unwrap_or(20.0_f32.max(min_speed));
+
+        if min_speed > max_speed {
+            return Err("min_speed > max_speed".to_string());
+        }
+
+        let min_freq = min_freq.unwrap_or(500.0_f32.min(max_freq.unwrap_or(std::f32::NAN)));
+        let max_freq = max_freq.unwrap_or(1000.0_f32.max(min_freq));
+
+        if min_freq > max_freq {
+            return Err("min_freq > max_freq".to_string());
+        }
 
         let speed_range = min_speed..=max_speed;
         let freq_range = min_freq..=max_freq;
