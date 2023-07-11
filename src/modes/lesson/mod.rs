@@ -1,12 +1,14 @@
+pub mod callsign;
+use std::iter::Iterator;
 use std::sync::{Arc, Mutex};
 
 use rand::Rng;
 use serenity::model::channel::Message;
 use serenity::model::channel::ReactionType;
-use serenity::model::prelude::{ChannelId, GuildId};
+use serenity::model::prelude::GuildId;
 use serenity::prelude::Context;
 
-pub struct CallLessonModeState {
+pub struct LessonModeState {
     speed_range: std::ops::RangeInclusive<f32>,
     freq_range: std::ops::RangeInclusive<f32>,
 
@@ -14,15 +16,18 @@ pub struct CallLessonModeState {
     last_freq: f32,
     last_speed: f32,
 
+    gen: Box<dyn Iterator<Item = String> + Send>,
+
     answered: bool, // to check 1st AC
     is_advancing: bool,
     next_ftr_token: Option<tokio_util::sync::CancellationToken>,
 }
 
-impl CallLessonModeState {
+impl LessonModeState {
     pub fn new(
         speed_range: std::ops::RangeInclusive<f32>,
         freq_range: std::ops::RangeInclusive<f32>,
+        gen: Box<dyn Iterator<Item = String> + Send>,
     ) -> Self {
         Self {
             speed_range,
@@ -30,6 +35,7 @@ impl CallLessonModeState {
             last_str: None,
             last_freq: 0.,
             last_speed: 0.,
+            gen,
             answered: false,
             is_advancing: false,
             next_ftr_token: None,
@@ -37,7 +43,7 @@ impl CallLessonModeState {
     }
 }
 
-impl Drop for CallLessonModeState {
+impl Drop for LessonModeState {
     fn drop(&mut self) {
         log::info!("lesson state dropped, {:?}", self.next_ftr_token);
         self.next_ftr_token.take().map(|t| t.cancel());
@@ -47,7 +53,7 @@ impl Drop for CallLessonModeState {
 pub async fn start(
     ctx: &Context,
     guild: GuildId,
-    state: Arc<Mutex<CallLessonModeState>>,
+    state: Arc<Mutex<LessonModeState>>,
 ) -> Result<(), ()> {
     let man = songbird::get(&ctx).await.expect("init songbird").clone();
 
@@ -56,7 +62,7 @@ pub async fn start(
     Ok(())
 }
 
-pub fn end(state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
+pub fn end(state: Arc<Mutex<LessonModeState>>) -> Result<(), ()> {
     state
         .lock()
         .map_err(|_| log::error!("lock failed"))?
@@ -69,7 +75,7 @@ pub fn end(state: Arc<Mutex<CallLessonModeState>>) -> Result<(), ()> {
 pub async fn on_message(
     ctx: &Context,
     msg: &Message,
-    state: Arc<Mutex<CallLessonModeState>>,
+    state: Arc<Mutex<LessonModeState>>,
 ) -> Result<(), ()> {
     let (s, ans, answered) = {
         let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
@@ -150,7 +156,7 @@ pub async fn on_message(
 
 async fn play(
     call: Arc<serenity::prelude::Mutex<songbird::Call>>,
-    state: Arc<Mutex<CallLessonModeState>>,
+    state: Arc<Mutex<LessonModeState>>,
 ) -> Result<(), ()> {
     let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
     let speed = st.last_speed;
@@ -187,13 +193,21 @@ async fn play(
 
 pub async fn play_next(
     call: Arc<serenity::prelude::Mutex<songbird::Call>>,
-    state: Arc<Mutex<CallLessonModeState>>,
+    state: Arc<Mutex<LessonModeState>>,
 ) -> Result<(), ()> {
-    let next_str = generate_callsign();
-    log::info!("next: {}", next_str);
-
     {
         let mut state = state.lock().map_err(|_| log::error!("lock failed"))?;
+
+        let next_str = match state.gen.next() {
+            Some(s) => s,
+            None => {
+                // TODO: switch mode no normal
+                return Ok(()); // no more
+            }
+        };
+
+        log::info!("next: {}", next_str);
+
         state.last_str = Some(next_str.clone());
         state.last_speed = rand::thread_rng().gen_range(state.speed_range.clone());
         state.last_freq = rand::thread_rng().gen_range(state.freq_range.clone());
@@ -203,50 +217,7 @@ pub async fn play_next(
     play(call, state).await
 }
 
-const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const ALNUM: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-const NUM: &'static str = "0123456789";
-const JA_PRF: &'static str = "ADEFGHJKLMNPQRS";
-
 fn rand_char(s: &str) -> &str {
-    let i = rand::random::<usize>() % s.len();
+    let i = rand::thread_rng().gen_range(0..s.len());
     &s[i..i + 1]
-}
-
-fn generate_callsign() -> String {
-    // TODO: improve algorithm
-    let s = match rand::random::<u8>() {
-        0..=13 => {
-            "7".to_string()
-                + rand_char("JKLMN")
-                + rand_char(NUM)
-                + rand_char(ALPHA)
-                + rand_char(ALPHA)
-                + rand_char(ALPHA)
-        }
-        14 => {
-            "8".to_string()
-                + rand_char("JN")
-                + rand_char(NUM)
-                + rand_char(ALNUM)
-                + rand_char(ALNUM)
-                + rand_char(ALNUM)
-        }
-        15..=18 => "JA".to_owned() + rand_char(NUM) + rand_char(ALPHA) + rand_char(ALPHA),
-        19 => "JR6".to_owned() + rand_char(ALPHA) + rand_char(ALPHA),
-        20..=255 => {
-            "J".to_string()
-                + rand_char(JA_PRF)
-                + rand_char(NUM)
-                + rand_char(ALPHA)
-                + rand_char(ALPHA)
-                + rand_char(ALPHA)
-        }
-    };
-
-    if rand::random::<u8>() < 50 {
-        s + "/" + rand_char(NUM)
-    } else {
-        s
-    }
 }

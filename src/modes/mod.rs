@@ -1,2 +1,2 @@
-pub mod call_lesson;
+pub mod lesson;
 pub mod normal;

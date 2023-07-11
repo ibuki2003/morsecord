@@ -40,15 +40,15 @@ impl crate::bot::Bot {
         let speed_range = min_speed..=max_speed;
         let freq_range = min_freq..=max_freq;
         let gid = command.guild_id.ok_or("not in guild")?;
-        let state = Arc::new(Mutex::new(
-            crate::modes::call_lesson::CallLessonModeState::new(speed_range, freq_range),
-        ));
-        crate::modes::call_lesson::start(&ctx, gid, state.clone())
+        let state = Arc::new(Mutex::new(crate::modes::lesson::LessonModeState::new(
+            speed_range,
+            freq_range,
+            Box::new(crate::modes::lesson::callsign::JaCallsignGen {}),
+        )));
+        crate::modes::lesson::start(&ctx, gid, state.clone())
             .await
             .map_err(|_| "error occured")?;
-        let _ = self
-            .switch_mode(gid.0, BotStateMode::CallsignLesson(state))
-            .await;
+        let _ = self.switch_mode(gid.0, BotStateMode::Lesson(state)).await;
 
         Ok("let's start lesson".to_string())
     }

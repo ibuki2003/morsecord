@@ -12,7 +12,7 @@ use serenity::model::channel::Message;
 #[derive(Clone)]
 pub enum BotStateMode {
     Normal,
-    CallsignLesson(Arc<Mutex<crate::modes::lesson::CallLessonModeState>>),
+    Lesson(Arc<Mutex<crate::modes::lesson::LessonModeState>>),
 }
 
 impl std::default::Default for BotStateMode {
@@ -64,9 +64,9 @@ impl Bot {
 
         match &*mode.lock().map_err(|_| log::error!("lock failed"))? {
             BotStateMode::Normal => {}
-            BotStateMode::CallsignLesson(s) => {
+            BotStateMode::Lesson(s) => {
                 log::info!("terminating callsign lesson");
-                let _ = crate::modes::call_lesson::end(s.clone());
+                let _ = crate::modes::lesson::end(s.clone());
             }
         }
         Ok(())
@@ -173,7 +173,7 @@ impl EventHandler for Bot {
             BotStateMode::Normal => {
                 let _ = crate::modes::normal::on_message(&ctx, &message, &self.db).await;
             }
-            BotStateMode::CallsignLesson(s) => {
+            BotStateMode::Lesson(s) => {
                 let _ = crate::modes::lesson::on_message(&ctx, &message, s.clone()).await;
             }
         }
