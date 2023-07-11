@@ -10,8 +10,6 @@ pub struct CallLessonModeState {
     speed_range: std::ops::RangeInclusive<f32>,
     freq_range: std::ops::RangeInclusive<f32>,
 
-    txt_ch: ChannelId,
-
     last_str: Option<String>,
     last_freq: f32,
     last_speed: f32,
@@ -25,12 +23,10 @@ impl CallLessonModeState {
     pub fn new(
         speed_range: std::ops::RangeInclusive<f32>,
         freq_range: std::ops::RangeInclusive<f32>,
-        txt_ch: ChannelId,
     ) -> Self {
         Self {
             speed_range,
             freq_range,
-            txt_ch,
             last_str: None,
             last_freq: 0.,
             last_speed: 0.,
@@ -77,10 +73,6 @@ pub async fn on_message(
 ) -> Result<(), ()> {
     let (s, ans, answered) = {
         let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
-
-        if msg.channel_id != st.txt_ch {
-            return Ok(());
-        }
 
         let s = msg.content.to_uppercase();
 

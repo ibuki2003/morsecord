@@ -20,10 +20,24 @@ impl std::default::Default for BotStateMode {
     }
 }
 
+struct BotState {
+    txt_ch: Option<serenity::model::id::ChannelId>,
+    mode: Arc<Mutex<BotStateMode>>,
+}
+
+impl std::default::Default for BotState {
+    fn default() -> Self {
+        BotState {
+            txt_ch: None,
+            mode: Arc::new(Mutex::new(BotStateMode::default())),
+        }
+    }
+}
+
 pub struct Bot {
     db: sqlx::SqlitePool,
 
-    states: Arc<Mutex<std::collections::HashMap<u64, Arc<Mutex<BotStateMode>>>>>,
+    states: Arc<Mutex<std::collections::HashMap<u64, BotState>>>,
 }
 
 impl Bot {
@@ -35,19 +49,23 @@ impl Bot {
     }
 
     pub async fn switch_mode(&self, guild_id: u64, mode: BotStateMode) -> Result<(), ()> {
-        let old = self
-            .states
-            .lock()
-            .map_err(|_| log::error!("lock failed"))?
-            .insert(guild_id, Arc::new(Mutex::new(mode)));
+        let mut mode = Arc::new(Mutex::new(mode));
+        std::mem::swap(
+            &mut self
+                .states
+                .lock()
+                .map_err(|_| log::error!("lock failed"))?
+                .entry(guild_id)
+                .or_default()
+                .mode,
+            &mut mode,
+        );
 
-        if let Some(state) = old {
-            match &*state.lock().map_err(|_| log::error!("lock failed"))? {
-                BotStateMode::Normal => {}
-                BotStateMode::CallsignLesson(s) => {
-                    log::info!("terminating callsign lesson");
-                    let _ = crate::modes::call_lesson::end(s.clone());
-                }
+        match &*mode.lock().map_err(|_| log::error!("lock failed"))? {
+            BotStateMode::Normal => {}
+            BotStateMode::CallsignLesson(s) => {
+                log::info!("terminating callsign lesson");
+                let _ = crate::modes::call_lesson::end(s.clone());
             }
         }
         Ok(())
@@ -138,11 +156,14 @@ impl EventHandler for Bot {
                     None => return,
                 };
 
-                let state = states.entry(gid).or_default().clone();
-                drop(states);
+                let state = states.entry(gid).or_default();
 
-                let sl = state.lock();
-                let mode = &*match sl {
+                if Some(message.channel_id) != state.txt_ch {
+                    return;
+                }
+
+                let mode = state.mode.lock();
+                let mode = &*match mode {
                     Ok(s) => s,
                     Err(_) => {
                         log::error!("lock failed");
