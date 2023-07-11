@@ -102,6 +102,15 @@ pub async fn on_message(
         .await
         .map_err(|_| log::error!("react failed"))?;
 
+        let man = songbird::get(&ctx).await.expect("init songbird").clone();
+        let call = man
+            .get(msg.guild_id.ok_or_else(|| log::error!("no guild"))?)
+            .ok_or_else(|| log::error!("not in call"))?;
+        {
+            let mut handler = call.lock().await;
+            handler.stop();
+        }
+
         let next_token = {
             let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
 
@@ -116,12 +125,6 @@ pub async fn on_message(
         };
 
         if let Some(token) = next_token {
-            let man = songbird::get(&ctx).await.expect("init songbird").clone();
-
-            let call = man
-                .get(msg.guild_id.ok_or_else(|| log::error!("no guild"))?)
-                .ok_or_else(|| log::error!("not in call"))?;
-
             tokio::spawn(async move {
                 tokio::select! {
                     _ = token.cancelled() => {},
