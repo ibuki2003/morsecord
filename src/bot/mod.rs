@@ -9,9 +9,10 @@ use serenity::prelude::{Context, EventHandler};
 use serenity::model::application::interaction::{Interaction, InteractionResponseType};
 use serenity::model::channel::Message;
 
+#[derive(Clone)]
 pub enum BotStateMode {
     Normal,
-    CallsignLesson(Arc<Mutex<crate::modes::call_lesson::CallLessonModeState>>),
+    CallsignLesson(Arc<Mutex<crate::modes::lesson::CallLessonModeState>>),
 }
 
 impl std::default::Default for BotStateMode {
@@ -138,58 +139,42 @@ impl EventHandler for Bot {
             return;
         }
 
-        log::info!("got message: {}", message.content);
-
-        {
-            // FIXME: match statement gives error "future cannot be sent between threads safely"
-            let (is_normal, csls) = {
-                let mut states = match self.states.lock() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        log::error!("lock failed");
-                        return;
-                    }
-                };
-
-                let gid = match message.guild_id {
-                    Some(gid) => gid.0,
-                    None => return,
-                };
-
-                let state = states.entry(gid).or_default();
-
-                if Some(message.channel_id) != state.txt_ch {
+        let mode = {
+            let mut states = match self.states.lock() {
+                Ok(s) => s,
+                Err(_) => {
+                    log::error!("lock failed");
                     return;
                 }
-
-                let mode = state.mode.lock();
-                let mode = &*match mode {
-                    Ok(s) => s,
-                    Err(_) => {
-                        log::error!("lock failed");
-                        return;
-                    }
-                };
-
-                let is_normal = match mode {
-                    BotStateMode::Normal => true,
-                    _ => false,
-                };
-
-                let csls = match mode {
-                    BotStateMode::CallsignLesson(s) => Some(s.clone()),
-                    _ => None,
-                };
-
-                (is_normal, csls)
             };
 
-            if is_normal {
-                let _ = crate::modes::normal::on_message(&ctx, &message, &self.db).await;
+            let gid = match message.guild_id {
+                Some(gid) => gid.0,
+                None => {
+                    log::info!("not guild; ignore");
+                    return;
+                }
+            };
+
+            let state = states.entry(gid).or_default();
+
+            if Some(message.channel_id) != state.txt_ch {
+                return;
             }
 
-            if let Some(csls) = csls {
-                let _ = crate::modes::call_lesson::on_message(&ctx, &message, csls.clone()).await;
+            state.mode.clone()
+        };
+
+        log::info!("got message: {}", message.content);
+
+        // NOTE: actually clone not needed but compiler complains: https://github.com/rust-lang/rust/issues/104883
+        let mode = (*mode.lock().unwrap()).clone();
+        match mode {
+            BotStateMode::Normal => {
+                let _ = crate::modes::normal::on_message(&ctx, &message, &self.db).await;
+            }
+            BotStateMode::CallsignLesson(s) => {
+                let _ = crate::modes::lesson::on_message(&ctx, &message, s.clone()).await;
             }
         }
     }
