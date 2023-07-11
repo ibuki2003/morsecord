@@ -141,6 +141,10 @@ pub async fn on_message(
                 Ok::<(), ()>(())
             });
         }
+    } else if s == "||".to_owned() + &ans + "||" {
+        msg.react(&ctx.http, ReactionType::from('⭕'))
+            .await
+            .map_err(|_| log::error!("react failed"))?;
     } else {
         msg.react(&ctx.http, ReactionType::from('❌'))
             .await
