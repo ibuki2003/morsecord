@@ -172,6 +172,8 @@ impl EventHandler for Bot {
         let _ = self.register_command_neko(&ctx).await;
         let _ = self.register_commands_vc(&ctx).await;
         let _ = self.register_commands_cw(&ctx).await;
+        let _ = self.register_commands_cw_lesson(&ctx).await;
+        log::info!("commands registered");
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {

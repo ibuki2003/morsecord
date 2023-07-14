@@ -102,7 +102,7 @@ impl crate::bot::Bot {
         Ok("good job!".to_string())
     }
 
-    pub async fn register_command_cw_lesson(&self, ctx: &Context) -> Result<(), ()> {
+    pub async fn register_commands_cw_lesson(&self, ctx: &Context) -> Result<(), ()> {
         Command::create_global_application_command(&ctx.http, |command| {
             command
                 .name("cw-start-lesson")
