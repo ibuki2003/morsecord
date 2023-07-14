@@ -5,19 +5,21 @@ use std::sync::{Arc, Mutex};
 
 use crate::bot::BotStateMode;
 
-pub fn get_lesson_gen(probset: &str) -> Result<Box<dyn Iterator<Item = String> + Send>, String> {
-    let (probset_name, _probset_args_str) =
-        probset.split_once(':').unwrap_or((probset, ""));
+pub fn get_lesson_gen(
+    probset: &str,
+) -> Result<Box<dyn Iterator<Item = (String, String)> + Send>, String> {
+    let (probset_name, _probset_args_str) = probset.split_once(':').unwrap_or((probset, ""));
 
     use crate::modes::lesson;
 
-    let gen: Box<dyn Iterator<Item = String> + Send> = match probset_name {
+    let gen: Box<dyn Iterator<Item = (String, String)> + Send> = match probset_name {
         "call_ja" => Box::new(lesson::callsign::JaCallsignGen {}),
         "nr_allja" => Box::new(lesson::allja_number::AllJANumberGen::new()),
-        _ => return Err(
-            "unknown probset.\n".to_owned()
-                + "available selections are: call_ja, nr_allja",
-            ),
+        _ => {
+            return Err(
+                "unknown probset.\n".to_owned() + "available selections are: call_ja, nr_allja"
+            )
+        }
     };
     Ok(gen)
 }

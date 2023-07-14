@@ -7,9 +7,9 @@ const JA_PRF: &'static str = "AEFGHIJKLMNOPQRS";
 
 pub struct JaCallsignGen;
 impl Iterator for JaCallsignGen {
-    type Item = String;
+    type Item = (String, String);
 
-    fn next(&mut self) -> Option<String> {
+    fn next(&mut self) -> Option<(String, String)> {
         // TODO: improve algorithm
         let s = match rand::random::<u8>() {
             0..=13 => {
@@ -41,10 +41,11 @@ impl Iterator for JaCallsignGen {
             }
         };
 
-        if rand::random::<u8>() < 50 {
-            Some(s + "/" + rand_char(NUM))
+        let s = if rand::random::<u8>() < 50 {
+            s + "/" + rand_char(NUM)
         } else {
-            Some(s)
-        }
+            s
+        };
+        Some((s.clone(), s))
     }
 }

@@ -14,10 +14,12 @@ pub struct LessonModeState {
     freq_range: std::ops::RangeInclusive<f32>,
 
     last_str: Option<String>,
+    last_ans: Option<String>,
     last_freq: f32,
     last_speed: f32,
 
-    gen: Box<dyn Iterator<Item = String> + Send>,
+    // gen generate (str, ans)
+    gen: Box<dyn Iterator<Item = (String, String)> + Send>,
 
     answered: bool, // to check 1st AC
     is_advancing: bool,
@@ -28,7 +30,7 @@ impl LessonModeState {
     pub fn new(
         speed_range: std::ops::RangeInclusive<f32>,
         freq_range: std::ops::RangeInclusive<f32>,
-        gen: Box<dyn Iterator<Item = String> + Send>,
+        gen: Box<dyn Iterator<Item = (String, String)> + Send>,
     ) -> Self {
         Self {
             speed_range,
@@ -40,6 +42,7 @@ impl LessonModeState {
             answered: false,
             is_advancing: false,
             next_ftr_token: None,
+            last_ans: None,
         }
     }
 }
@@ -83,7 +86,7 @@ pub async fn on_message(
 
         let s = msg.content.to_uppercase();
 
-        let ans = match &st.last_str {
+        let ans = match &st.last_ans {
             None => return Ok(()),
             Some(ans) => ans.to_uppercase(),
         };
@@ -199,7 +202,7 @@ pub async fn play_next(
     {
         let mut state = state.lock().map_err(|_| log::error!("lock failed"))?;
 
-        let next_str = match state.gen.next() {
+        let (next_str, next_ans) = match state.gen.next() {
             Some(s) => s,
             None => {
                 // TODO: switch mode no normal
@@ -210,6 +213,7 @@ pub async fn play_next(
         log::info!("next: {}", next_str);
 
         state.last_str = Some(next_str.clone());
+        state.last_ans = Some(next_ans.clone());
         state.last_speed = rand::thread_rng().gen_range(state.speed_range.clone());
         state.last_freq = rand::thread_rng().gen_range(state.freq_range.clone());
         state.answered = false;
