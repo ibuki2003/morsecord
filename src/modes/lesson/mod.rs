@@ -173,6 +173,9 @@ async fn play(
 
     drop(st);
 
+    let delay_time =
+        crate::cw_audio::CWAudioPCM::get_duration(&s, speed) + std::time::Duration::from_secs(10);
+
     tokio::spawn(async move {
         loop {
             {
@@ -183,7 +186,7 @@ async fn play(
 
             tokio::select! {
                 _ = token.cancelled() => { break; }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(20)) => {}
+                _ = tokio::time::sleep(delay_time) => {}
             };
         }
         Ok::<(), ()>(())

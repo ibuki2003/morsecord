@@ -62,3 +62,7 @@ pub fn get_morse(c: char) -> (u8, u8) {
         _ => (0, 0),
     }
 }
+
+pub fn dot_time(wpm: f32) -> std::time::Duration {
+    std::time::Duration::from_secs_f32(1.2 / wpm)
+}

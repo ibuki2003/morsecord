@@ -10,7 +10,8 @@ pub struct CWAudioPCM {
 
 impl CWAudioPCM {
     pub fn new(str: String, wpm: f32, freq: f32) -> Self {
-        let dot_length = (1.2 / wpm * songbird::constants::SAMPLE_RATE_RAW as f32) as usize;
+        let dot_length = (crate::morse::dot_time(wpm).as_secs_f32()
+            * songbird::constants::SAMPLE_RATE_RAW as f32) as usize;
 
         let mut events = Vec::new();
 
@@ -35,6 +36,29 @@ impl CWAudioPCM {
 
             omega: 2.0 * std::f32::consts::PI * freq / songbird::constants::SAMPLE_RATE_RAW as f32,
         }
+    }
+
+    pub fn get_duration(s: &str, wpm: f32) -> std::time::Duration {
+        let mut length = 0;
+
+        for c in s.chars() {
+            if c == ' ' {
+                length += 4;
+                continue;
+            }
+
+            let (n, b) = crate::morse::get_morse(c);
+            for i in 0..n {
+                if b & (1 << i) != 0 {
+                    length += 4;
+                } else {
+                    length += 2;
+                }
+            }
+            length += 2;
+        }
+
+        crate::morse::dot_time(wpm) * length
     }
 
     pub fn to_input(self) -> Input {
