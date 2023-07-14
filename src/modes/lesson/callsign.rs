@@ -48,3 +48,25 @@ impl Iterator for JaCallsignGen {
         }
     }
 }
+
+pub struct CWFreakCallsignGen {
+    data: Vec<String>,
+}
+impl CWFreakCallsignGen {
+    pub fn new() -> Result<Self, std::io::Error> {
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        let text = std::fs::read_to_string("./freak_calls.txt")?;
+        let mut data = text.lines().map(|x| x.to_owned()).collect::<Vec<_>>();
+        data.shuffle(&mut rng);
+        Ok(Self { data })
+    }
+}
+
+impl Iterator for CWFreakCallsignGen {
+    type Item = String;
+
+    fn next(&mut self) -> Option<String> {
+        self.data.pop().map(|x| x.to_string())
+    }
+}

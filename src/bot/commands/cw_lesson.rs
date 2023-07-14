@@ -12,11 +12,14 @@ pub fn get_lesson_gen(probset: &str) -> Result<Box<dyn Iterator<Item = String> +
 
     let gen: Box<dyn Iterator<Item = String> + Send> = match probset_name {
         "call_ja" => Box::new(lesson::callsign::JaCallsignGen {}),
+        "call_freak" => Box::new(
+            lesson::callsign::CWFreakCallsignGen::new()
+                .map_err(|_e| "error: freak_calls.txt required.".to_string())?,
+        ),
         "nr_allja" => Box::new(lesson::allja_number::AllJANumberGen::new()),
         _ => {
-            return Err(
-                "unknown probset.\n".to_owned() + "available selections are: call_ja, nr_allja"
-            )
+            return Err("unknown probset.\n".to_owned()
+                + "available selections are: call_ja, call_freak, nr_allja")
         }
     };
     Ok(gen)
