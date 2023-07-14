@@ -21,16 +21,30 @@ impl std::default::Default for BotStateMode {
     }
 }
 
+impl BotStateMode {
+    // NOTE: call this when you want to discard the state
+    // Drop trait is not implemented because BotStateMode is cloned at Bot::message. :(
+    pub fn discard(&self) {
+        match self {
+            BotStateMode::Normal => {}
+            BotStateMode::Lesson(s) => {
+                log::info!("terminating callsign lesson");
+                let _ = crate::modes::lesson::end(s.clone());
+            }
+        }
+    }
+}
+
 struct BotState {
-    txt_ch: Option<serenity::model::id::ChannelId>,
+    txt_ch: serenity::model::id::ChannelId,
     mode: Arc<Mutex<BotStateMode>>,
 }
 
-impl std::default::Default for BotState {
-    fn default() -> Self {
+impl Clone for BotState {
+    fn clone(&self) -> Self {
         BotState {
-            txt_ch: None,
-            mode: Arc::new(Mutex::new(BotStateMode::default())),
+            txt_ch: self.txt_ch,
+            mode: self.mode.clone(),
         }
     }
 }
@@ -49,26 +63,100 @@ impl Bot {
         }
     }
 
-    pub async fn switch_mode(&self, guild_id: u64, mode: BotStateMode) -> Result<(), ()> {
+    // called when bot joins to a call
+    pub fn add_call_state(
+        &self,
+        guild_id: u64,
+        ch: serenity::model::prelude::ChannelId,
+    ) -> Result<(), String> {
+        let mut states = self.states.lock().map_err(|_| {
+            log::error!("lock failed");
+            "internal error".to_string()
+        })?;
+
+        if states.contains_key(&guild_id) {
+            return Err("already in call".to_string());
+        }
+
+        states.insert(
+            guild_id,
+            BotState {
+                txt_ch: ch,
+                mode: Arc::new(Mutex::new(BotStateMode::Normal)),
+            },
+        );
+
+        Ok(())
+    }
+
+    pub fn switch_mode(&self, guild_id: u64, mode: BotStateMode) -> Result<(), String> {
         let mut mode = Arc::new(Mutex::new(mode));
         std::mem::swap(
             &mut self
                 .states
                 .lock()
-                .map_err(|_| log::error!("lock failed"))?
-                .entry(guild_id)
-                .or_default()
+                .map_err(|_| {
+                    log::error!("lock failed");
+                    "internal error".to_string()
+                })?
+                .get_mut(&guild_id)
+                .ok_or("not in call".to_string())?
                 .mode,
             &mut mode,
         );
 
-        match &*mode.lock().map_err(|_| log::error!("lock failed"))? {
-            BotStateMode::Normal => {}
-            BotStateMode::Lesson(s) => {
-                log::info!("terminating callsign lesson");
-                let _ = crate::modes::lesson::end(s.clone());
-            }
-        }
+        mode.lock()
+            .map_err(|_| {
+                log::error!("lock failed");
+                "internal error".to_string()
+            })?
+            .discard();
+
+        Ok(())
+    }
+
+    pub fn get_call_txt_ch(&self, guild_id: u64) -> Result<serenity::model::id::ChannelId, String> {
+        let states = self.states.lock().map_err(|_| {
+            log::error!("lock failed");
+            "internal error".to_string()
+        })?;
+
+        Ok(states
+            .get(&guild_id)
+            .ok_or("not in call".to_string())?
+            .txt_ch)
+    }
+
+    pub fn get_call_mode(&self, guild_id: u64) -> Result<Arc<Mutex<BotStateMode>>, String> {
+        let states = self.states.lock().map_err(|_| {
+            log::error!("lock failed");
+            "internal error".to_string()
+        })?;
+
+        Ok(states
+            .get(&guild_id)
+            .ok_or("not in call".to_string())?
+            .mode
+            .clone())
+    }
+
+    pub fn erase_call_state(&self, guild_id: u64) -> Result<(), String> {
+        let mut states = self.states.lock().map_err(|_| {
+            log::error!("lock failed");
+            "internal error".to_string()
+        })?;
+
+        let state = states.remove(&guild_id).ok_or("not in call".to_string())?;
+
+        state
+            .mode
+            .lock()
+            .map_err(|_| {
+                log::error!("lock failed");
+                "internal error".to_string()
+            })?
+            .discard();
+
         Ok(())
     }
 }
@@ -91,35 +179,16 @@ impl EventHandler for Bot {
             log::info!("got command: {}", command.data.name);
 
             let content = match command.data.name.as_str() {
-                "neko" => self
-                    .run_command_neko(&command.data.options)
-                    .unwrap_or_else(|e| e),
-                "cw-join" => self
-                    .run_command_join(&ctx, &command)
-                    .await
-                    .unwrap_or_else(|e| e),
-                "cw-leave" => self
-                    .run_command_leave(&ctx, &command)
-                    .await
-                    .unwrap_or_else(|e| e),
-                "cw-speed" => self
-                    .run_command_speed(&ctx, &command)
-                    .await
-                    .unwrap_or_else(|e| e),
-                "cw-freq" => self
-                    .run_command_freq(&ctx, &command)
-                    .await
-                    .unwrap_or_else(|e| e),
-                "cw-start-lesson" => self
-                    .run_command_lesson_start(&ctx, &command)
-                    .await
-                    .unwrap_or_else(|e| e),
-                "cw-end-lesson" => self
-                    .run_command_lesson_end(&ctx, &command)
-                    .await
-                    .unwrap_or_else(|e| e),
-                _ => "not implemented :(".to_string(),
-            };
+                "neko" => self.run_command_neko(&command.data.options),
+                "cw-join" => self.run_command_join(&ctx, &command).await,
+                "cw-leave" => self.run_command_leave(&ctx, &command).await,
+                "cw-speed" => self.run_command_speed(&ctx, &command).await,
+                "cw-freq" => self.run_command_freq(&ctx, &command).await,
+                "cw-start-lesson" => self.run_command_lesson_start(&ctx, &command).await,
+                "cw-end-lesson" => self.run_command_lesson_end(&ctx, &command).await,
+                _ => Ok("not implemented :(".to_string()),
+            }
+            .unwrap_or_else(|e| e);
 
             if let Err(why) = command
                 .create_interaction_response(&ctx.http, |response| {
@@ -139,30 +208,24 @@ impl EventHandler for Bot {
             return;
         }
 
-        let mode = {
-            let mut states = match self.states.lock() {
-                Ok(s) => s,
-                Err(_) => {
-                    log::error!("lock failed");
-                    return;
-                }
-            };
+        let Some(gid) = message.guild_id else {
+            log::info!("message not in guild");
+            return;
+        };
 
-            let gid = match message.guild_id {
-                Some(gid) => gid.0,
-                None => {
-                    log::info!("not guild; ignore");
-                    return;
-                }
-            };
+        let Ok(cid) = self.get_call_txt_ch(gid.0) else {
+            return;
+        };
 
-            let state = states.entry(gid).or_default();
+        if cid != message.channel_id {
+            return;
+        }
 
-            if Some(message.channel_id) != state.txt_ch {
+        let mode = match self.get_call_mode(gid.0) {
+            Ok(m) => m,
+            Err(_) => {
                 return;
             }
-
-            state.mode.clone()
         };
 
         log::info!("got message: {}", message.content);

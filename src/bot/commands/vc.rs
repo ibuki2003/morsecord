@@ -31,11 +31,12 @@ impl crate::bot::Bot {
         command: &ApplicationCommandInteraction,
     ) -> Result<String, String> {
         let ch = get_ch(&command)?;
+        let gid = command.guild_id.ok_or_else(|| "not in guild".to_string())?;
+
+        self.add_call_state(gid.0, command.channel_id.into())?;
 
         let man = songbird::get(&ctx).await.expect("init songbird").clone();
-        let handler = man
-            .join(command.guild_id.ok_or_else(|| "not in guild")?, ch)
-            .await;
+        let handler = man.join(gid, ch).await;
         handler.1.map_err(|e| {
             log::error!("join failed: {:?}", e);
             "error occured"
@@ -60,6 +61,8 @@ impl crate::bot::Bot {
         let gid = command.guild_id.ok_or_else(|| "not in guild".to_string())?;
         let cid = command.channel_id;
         let has_handler = man.get(gid).is_some();
+
+        self.erase_call_state(gid.0)?;
 
         if has_handler {
             if let Err(e) = man.remove(gid).await {

@@ -62,7 +62,7 @@ impl crate::bot::Bot {
         crate::modes::lesson::start(&ctx, gid, state.clone())
             .await
             .map_err(|_| "error occured")?;
-        let _ = self.switch_mode(gid.0, BotStateMode::Lesson(state)).await;
+        let _ = self.switch_mode(gid.0, BotStateMode::Lesson(state))?;
 
         Ok("let's start lesson".to_string())
     }
@@ -72,9 +72,7 @@ impl crate::bot::Bot {
         _ctx: &Context,
         command: &ApplicationCommandInteraction,
     ) -> Result<String, String> {
-        let _ = self
-            .switch_mode(command.guild_id.ok_or("no guild")?.0, BotStateMode::Normal)
-            .await;
+        let _ = self.switch_mode(command.guild_id.ok_or("no guild")?.0, BotStateMode::Normal)?;
 
         Ok("good job!".to_string())
     }
