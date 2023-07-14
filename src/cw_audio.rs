@@ -15,6 +15,8 @@ impl CWAudioPCM {
 
         let mut events = Vec::new();
 
+        events.push((dot_length * 2, false)); // first pause
+
         for c in str.chars() {
             if c == ' ' {
                 events.push((dot_length * 4, false));
@@ -39,7 +41,7 @@ impl CWAudioPCM {
     }
 
     pub fn get_duration(s: &str, wpm: f32) -> std::time::Duration {
-        let mut length = 0;
+        let mut length = 2;
 
         for c in s.chars() {
             if c == ' ' {
