@@ -31,7 +31,8 @@ impl Iterator for AllJANumberGen {
         Some(match rand::random::<u8>() {
             0..=99 => s + "H",
             100..=199 => s + "M",
-            200..=255 => s + "P",
+            200..=224 => s + "L",
+            225..=255 => s + "P",
         })
     }
 }
