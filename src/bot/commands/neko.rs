@@ -1,9 +1,13 @@
 use crate::bot::commands::get_value_i64;
+use anyhow::Context as _;
 use serenity::model::prelude::command::{Command, CommandOptionType};
 use serenity::model::prelude::interaction::application_command::CommandDataOption;
 
 impl crate::bot::Bot {
-    pub async fn register_command_neko(&self, ctx: &serenity::client::Context) -> Result<(), ()> {
+    pub async fn register_command_neko(
+        &self,
+        ctx: &serenity::client::Context,
+    ) -> anyhow::Result<()> {
         Command::create_global_application_command(&ctx.http, |command| {
             command
                 .name("neko")
@@ -19,11 +23,11 @@ impl crate::bot::Bot {
                 })
         })
         .await
-        .map_err(|e| log::error!("error: {:?}", e))?;
+        .context("command neko registration failed")?;
         Ok(())
     }
 
-    pub fn run_command_neko(&self, options: &[CommandDataOption]) -> Result<String, String> {
+    pub fn run_command_neko(&self, options: &[CommandDataOption]) -> anyhow::Result<String> {
         let count = options
             .iter()
             .find(|option| option.name == "count")

@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use serenity::model::application::command::Command;
 use serenity::model::prelude::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::command::CommandOptionType;
@@ -5,7 +6,7 @@ use serenity::prelude::Context;
 
 fn get_ch(
     cmd: &serenity::model::prelude::application_command::ApplicationCommandInteraction,
-) -> Result<u64, String> {
+) -> anyhow::Result<u64> {
     let ch = cmd
         .data
         .options
@@ -16,11 +17,11 @@ fn get_ch(
     let ch = ch
         .value
         .as_ref()
-        .ok_or("no ch value")?
+        .context("no ch value")?
         .as_str()
-        .ok_or("no value")?
+        .context("no value")?
         .parse::<u64>()
-        .map_err(|_| "parse error")?;
+        .context("parse error")?;
     Ok(ch)
 }
 
@@ -29,24 +30,19 @@ impl crate::bot::Bot {
         &self,
         ctx: &Context,
         command: &ApplicationCommandInteraction,
-    ) -> Result<String, String> {
+    ) -> anyhow::Result<String> {
         let ch = get_ch(&command)?;
-        let gid = command.guild_id.ok_or_else(|| "not in guild".to_string())?;
+        let gid = command.guild_id.context("not in guild")?;
 
         self.add_call_state(gid.0, command.channel_id.into())?;
 
         let man = songbird::get(&ctx).await.expect("init songbird").clone();
         let handler = man.join(gid, ch).await;
-        handler.1.map_err(|e| {
-            log::error!("join failed: {:?}", e);
-            "error occured"
-        })?;
+        handler.1.context("join failed")?;
+
         {
             let mut handler = handler.0.lock().await;
-            handler.deafen(true).await.map_err(|e| {
-                log::error!("deafen failed: {:?}", e);
-                "error occured"
-            })?;
+            handler.deafen(true).await.context("deafen failed")?;
         }
 
         Ok("got it!".to_string())
@@ -56,43 +52,24 @@ impl crate::bot::Bot {
         &self,
         ctx: &Context,
         command: &ApplicationCommandInteraction,
-    ) -> Result<String, String> {
+    ) -> anyhow::Result<String> {
         let man = songbird::get(&ctx).await.expect("init songbird").clone();
-        let gid = command.guild_id.ok_or_else(|| "not in guild".to_string())?;
+        let gid = command.guild_id.context("not in guild")?;
         let cid = command.channel_id;
         let has_handler = man.get(gid).is_some();
 
         self.erase_call_state(gid.0)?;
 
         if has_handler {
-            if let Err(e) = man.remove(gid).await {
-                cid.say(&ctx.http, format!("Failed: {:?}", e))
-                    .await
-                    .map_err(|e| {
-                        log::error!("say error: {:?}", e);
-                        "error occured".to_string()
-                    })?;
-            }
-
-            cid.say(&ctx.http, "Left voice channel")
-                .await
-                .map_err(|e| {
-                    log::error!("say error: {:?}", e);
-                    "error occured".to_string()
-                })?;
+            man.remove(gid).await.context("leave failed")?;
         } else {
-            cid.say(&ctx.http, "Not in a voice channel")
-                .await
-                .map_err(|e| {
-                    log::error!("say error: {:?}", e);
-                    "error occured".to_string()
-                })?;
+            return Ok("Not in a voice channel".into());
         }
 
         Ok("bye!".to_string())
     }
 
-    pub async fn register_commands_vc(&self, ctx: &Context) -> Result<(), ()> {
+    pub async fn register_commands_vc(&self, ctx: &Context) -> anyhow::Result<()> {
         Command::create_global_application_command(&ctx.http, |command| {
             command
                 .name("cw-join")
@@ -108,13 +85,13 @@ impl crate::bot::Bot {
                 })
         })
         .await
-        .map_err(|e| log::error!("error: {:?}", e))?;
+        .context("command cw-join registration failed")?;
 
         Command::create_global_application_command(&ctx.http, |command| {
             command.name("cw-leave").description("leave")
         })
         .await
-        .map_err(|e| log::error!("error: {:?}", e))?;
+        .context("command cw-leave registration failed")?;
 
         Command::create_global_application_command(&ctx.http, |command| {
             command
@@ -129,7 +106,7 @@ impl crate::bot::Bot {
                 })
         })
         .await
-        .map_err(|e| log::error!("error: {:?}", e))?;
+        .context("command cw-play registration failed")?;
 
         Ok(())
     }
