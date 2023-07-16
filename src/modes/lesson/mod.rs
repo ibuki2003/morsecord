@@ -1,6 +1,7 @@
 pub mod acag_number;
 pub mod allja_number;
 pub mod callsign;
+use anyhow::Context as _;
 use std::iter::Iterator;
 use std::sync::{Arc, Mutex};
 
@@ -56,18 +57,19 @@ pub async fn start(
     ctx: &Context,
     guild: GuildId,
     state: Arc<Mutex<LessonModeState>>,
-) -> Result<(), ()> {
+) -> anyhow::Result<()> {
     let man = songbird::get(&ctx).await.expect("init songbird").clone();
 
-    let call = man.get(guild).ok_or_else(|| log::error!("not in call"))?;
+    let call = man.get(guild).context("not in call")?;
     play_next(call, state).await?;
     Ok(())
 }
 
-pub fn end(state: Arc<Mutex<LessonModeState>>) -> Result<(), ()> {
+pub fn end(state: Arc<Mutex<LessonModeState>>) -> anyhow::Result<()> {
     state
         .lock()
-        .map_err(|_| log::error!("lock failed"))?
+        .or_else(|_| anyhow::bail!("lock failed"))
+        .context("internal error")?
         .next_ftr_token
         .take()
         .map(|t| t.cancel());
@@ -78,9 +80,12 @@ pub async fn on_message(
     ctx: &Context,
     msg: &Message,
     state: Arc<Mutex<LessonModeState>>,
-) -> Result<(), ()> {
+) -> anyhow::Result<()> {
     let (s, ans, answered) = {
-        let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
+        let mut st = state
+            .lock()
+            .or_else(|_| anyhow::bail!("lock failed"))
+            .context("internal error")?;
 
         let s = msg.content.to_uppercase();
 
@@ -108,19 +113,22 @@ pub async fn on_message(
             },
         )
         .await
-        .map_err(|_| log::error!("react failed"))?;
+        .context("react failed")?;
 
         let man = songbird::get(&ctx).await.expect("init songbird").clone();
         let call = man
-            .get(msg.guild_id.ok_or_else(|| log::error!("no guild"))?)
-            .ok_or_else(|| log::error!("not in call"))?;
+            .get(msg.guild_id.context("not in guild")?)
+            .context("not in call")?;
         {
             let mut handler = call.lock().await;
             handler.stop();
         }
 
         let next_token = {
-            let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
+            let mut st = state
+                .lock()
+                .or_else(|_| anyhow::bail!("lock failed"))
+                .context("internal error")?;
 
             if !st.is_advancing {
                 let token = tokio_util::sync::CancellationToken::new();
@@ -137,21 +145,21 @@ pub async fn on_message(
                 tokio::select! {
                     _ = token.cancelled() => {},
                     _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
-                        state.lock().map_err(|_| log::error!("lock failed"))?.is_advancing = false;
+                        state.lock().or_else(|_| anyhow::bail!("lock failed")).context("internal error")?.is_advancing = false;
                         play_next(call, state.clone()).await?;
                     },
                 };
-                Ok::<(), ()>(())
+                Ok::<(), anyhow::Error>(())
             });
         }
     } else if s == "||".to_owned() + &ans + "||" {
         msg.react(&ctx.http, ReactionType::from('⭕'))
             .await
-            .map_err(|_| log::error!("react failed"))?;
+            .context("react failed")?;
     } else {
         msg.react(&ctx.http, ReactionType::from('❌'))
             .await
-            .map_err(|_| log::error!("react failed"))?;
+            .context("react failed")?;
     }
     Ok(())
 }
@@ -159,8 +167,8 @@ pub async fn on_message(
 async fn play(
     call: Arc<serenity::prelude::Mutex<songbird::Call>>,
     state: Arc<Mutex<LessonModeState>>,
-) -> Result<(), ()> {
-    let mut st = state.lock().map_err(|_| log::error!("lock failed"))?;
+) -> anyhow::Result<()> {
+    let mut st = state.lock().or_else(|_| anyhow::bail!("lock failed"))?;
     let speed = st.last_speed;
     let freq = st.last_freq;
     let s = &st.last_str;
@@ -199,9 +207,12 @@ async fn play(
 pub async fn play_next(
     call: Arc<serenity::prelude::Mutex<songbird::Call>>,
     state: Arc<Mutex<LessonModeState>>,
-) -> Result<(), ()> {
+) -> anyhow::Result<()> {
     {
-        let mut state = state.lock().map_err(|_| log::error!("lock failed"))?;
+        let mut state = state
+            .lock()
+            .or_else(|_| anyhow::bail!("lock failed"))
+            .context("internal error")?;
 
         let next_str = match state.gen.next() {
             Some(s) => s,

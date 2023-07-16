@@ -1,8 +1,9 @@
+use anyhow::Context as _;
 use serenity::model::channel::Message;
 use serenity::prelude::Context;
 use sqlx::Row;
 
-pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) -> Result<(), ()> {
+pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) -> anyhow::Result<()> {
     let s = &msg.content;
     if s.starts_with(";") {
         return Ok(());
@@ -11,8 +12,7 @@ pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) -> 
     let speed_cfgs = sqlx::query("select * from cw_speed where id = ?")
         .bind(msg.author.id.to_string())
         .fetch_all(db)
-        .await
-        .map_err(|e| log::error!("query failed: {}", e))?;
+        .await?;
 
     let (speed, freq) = speed_cfgs
         .first()
@@ -21,7 +21,7 @@ pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) -> 
 
     let man = songbird::get(&ctx).await.expect("init songbird").clone();
 
-    let handler = man.get(msg.guild_id.ok_or_else(|| log::error!("no guild"))?);
+    let handler = man.get(msg.guild_id.context("no guild")?);
     if let Some(handler) = handler {
         let mut handler = handler.lock().await;
         let source = crate::cw_audio::CWAudioPCM::new(s.to_string(), speed, freq).to_input();

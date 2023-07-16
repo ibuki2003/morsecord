@@ -13,14 +13,14 @@ struct Token {
     token: String,
 }
 
-fn get_token(file_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn get_token(file_name: &str) -> anyhow::Result<String> {
     let file = File::open(file_name)?;
     let reader = BufReader::new(file);
     let t: Token = serde_json::from_reader(reader)?;
     Ok(t.token)
 }
 
-fn init_logger(){
+fn init_logger() {
     let base_config = fern::Dispatch::new();
 
     let stderr_config = fern::Dispatch::new()
@@ -37,15 +37,13 @@ fn init_logger(){
         })
         .chain(std::io::stderr());
 
-    base_config
-        .chain(stderr_config)
-        .apply().unwrap();
+    base_config.chain(stderr_config).apply().unwrap();
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     init_logger();
-    let token = get_token("config.json").expect("no token found");
+    let token = get_token("config.json")?;
     let framework = StandardFramework::new()
         // .configure(|c| c.prefix("~")) // コマンドプレフィックス
         ;
@@ -84,4 +82,6 @@ async fn main() {
 
     tokio::signal::ctrl_c().await.unwrap();
     log::info!("Received Ctrl-C, shutting down.");
+
+    Ok(())
 }

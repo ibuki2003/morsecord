@@ -1,4 +1,5 @@
 use crate::modes::lesson::rand_char;
+use anyhow::Context as _;
 
 const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const ALNUM: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -53,10 +54,10 @@ pub struct CWFreakCallsignGen {
     data: Vec<String>,
 }
 impl CWFreakCallsignGen {
-    pub fn new() -> Result<Self, std::io::Error> {
+    pub fn new() -> anyhow::Result<Self> {
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
-        let text = std::fs::read_to_string("./freak_calls.txt")?;
+        let text = std::fs::read_to_string("./freak_calls.txt").context("file open failed")?;
         let mut data = text.lines().map(|x| x.to_owned()).collect::<Vec<_>>();
         data.shuffle(&mut rng);
         Ok(Self { data })
