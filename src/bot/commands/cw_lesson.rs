@@ -18,10 +18,11 @@ pub fn get_lesson_gen(probset: &str) -> anyhow::Result<Box<dyn Iterator<Item = S
                 .context("error: freak_calls.txt required.")?,
         ),
         "nr_allja" => Box::new(lesson::allja_number::AllJANumberGen::new()),
+        "nr_acag" => Box::new(lesson::acag_number::ACAGNumberGen::new()),
         _ => {
             anyhow::bail!(
                 "unknown probset.\n".to_owned()
-                    + "available selections are: call_ja, call_freak, nr_allja"
+                    + "available selections are: call_ja, call_freak, nr_allja, nr_acag"
             )
         }
     };
