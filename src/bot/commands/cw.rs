@@ -20,7 +20,7 @@ impl crate::bot::Bot {
             .map(|option| get_value_f64(&option.value))
             .context("no argument")??;
 
-        sqlx::query("insert or replace into cw_speed(id, speed) values(?, ?)")
+        sqlx::query("insert into cw_speed (id, speed) values (?, ?) on conflict (id) do update set speed = excluded.speed")
             .bind(command.user.id.to_string())
             .bind(new_speed)
             .execute(&self.db)
@@ -43,7 +43,7 @@ impl crate::bot::Bot {
             .map(|option| get_value_f64(&option.value))
             .context("no argument")??;
 
-        sqlx::query("insert or replace into cw_speed(id, freq) values(?, ?)")
+        sqlx::query("insert into cw_speed (id, freq) values (?, ?) on conflict (id) do update set freq = excluded.freq")
             .bind(command.user.id.to_string())
             .bind(new_freq)
             .execute(&self.db)
