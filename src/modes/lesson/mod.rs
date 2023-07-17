@@ -1,6 +1,8 @@
 pub mod acag_number;
 pub mod allja_number;
 pub mod callsign;
+pub mod file;
+
 use anyhow::Context as _;
 use std::iter::Iterator;
 use std::sync::{Arc, Mutex};

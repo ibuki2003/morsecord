@@ -7,22 +7,20 @@ use std::sync::{Arc, Mutex};
 use crate::bot::BotStateMode;
 
 pub fn get_lesson_gen(probset: &str) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>> {
-    let (probset_name, _probset_args_str) = probset.split_once(':').unwrap_or((probset, ""));
+    // TODO: use braces to support nesting
+    let (probset_name, probset_args_str) = probset.split_once(':').unwrap_or((probset, ""));
 
     use crate::modes::lesson;
 
     let gen: Box<dyn Iterator<Item = String> + Send> = match probset_name {
         "call_ja" => Box::new(lesson::callsign::JaCallsignGen {}),
-        "call_freak" => Box::new(
-            lesson::callsign::CWFreakCallsignGen::new()
-                .context("error: freak_calls.txt required.")?,
-        ),
+        "file" => Box::new(lesson::file::FileSourceGen::new(probset_args_str)?),
         "nr_allja" => Box::new(lesson::allja_number::AllJANumberGen::new()),
         "nr_acag" => Box::new(lesson::acag_number::ACAGNumberGen::new()),
         _ => {
             anyhow::bail!(
                 "unknown probset.\n".to_owned()
-                    + "available selections are: call_ja, call_freak, nr_allja, nr_acag"
+                    + "available selections are: call_ja, file, nr_allja, nr_acag"
             )
         }
     };
