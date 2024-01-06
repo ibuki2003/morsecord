@@ -133,3 +133,49 @@ pub fn get_morse_str(s: String) -> Vec<(u8, u8)> {
 pub fn dot_time(wpm: f32) -> std::time::Duration {
     std::time::Duration::from_secs_f32(1.2 / wpm)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_morse_normal() {
+        assert_eq!(
+            get_morse_str("ABC".to_string()),
+            [
+                (2, 0b01),
+                (4, 0b1000),
+                (4, 0b1010),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_morse_whitespace() {
+        // whitespace in a row should be merged
+        assert_eq!(
+            get_morse_str("A A  A\n　A".to_string()),
+            [
+                (2, 0b01),
+                (0, 0),
+                (2, 0b01),
+                (0, 0),
+                (2, 0b01),
+                (0, 0),
+                (2, 0b01),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_morse_kana() {
+        assert_eq!(
+            get_morse_str("イロハ".to_string()),
+            [
+                (2, 0b01),
+                (4, 0b0101),
+                (4, 0b1000),
+            ]
+        );
+    }
+}
