@@ -111,9 +111,24 @@ pub fn get_morse(c: char) -> (u8, u8) {
         '゜' => (5, 0b00110),
         'ー' => (5, 0b01101),
         '、' => (6, 0b010101),
+
+        // whitespace and other characters
         _ => (0, 0),
     }
 }
+
+pub fn get_morse_str(s: String) -> Vec<(u8, u8)> {
+    let mut v = Vec::<(u8, u8)>::new();
+    for c in s.chars() {
+        let m = get_morse(c);
+        if m.0 == 0 && v.last().map(|x| x.0 == 0).unwrap_or(false) {
+            continue;
+        }
+        v.push(m);
+    }
+    v
+}
+
 
 pub fn dot_time(wpm: f32) -> std::time::Duration {
     std::time::Duration::from_secs_f32(1.2 / wpm)

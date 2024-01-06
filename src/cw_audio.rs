@@ -17,11 +17,12 @@ impl CWAudioPCM {
 
         events.push((dot_length * 2, false)); // first pause
 
-        for c in str.chars() {
-            if c == ' ' {
+        for c in crate::morse::get_morse_str(str) {
+            if c.0 == 0 {
+                // space
                 events.push((dot_length * 4, false));
             } else {
-                let (l, b) = crate::morse::get_morse(c);
+                let (l, b) = c;
                 for i in (0..l).rev() {
                     let k = (b & (1 << i)) != 0;
                     events.push(((dot_length * (if k { 3 } else { 1 })) as usize, true));
