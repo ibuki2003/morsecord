@@ -22,6 +22,12 @@ impl AllJANumberGen {
     }
 }
 
+impl Default for AllJANumberGen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Iterator for AllJANumberGen {
     type Item = String;
 

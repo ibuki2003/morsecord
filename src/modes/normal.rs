@@ -5,7 +5,7 @@ use sqlx::Row;
 
 pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) -> anyhow::Result<()> {
     let s = &msg.content;
-    if s.starts_with(";") {
+    if s.starts_with(';') {
         return Ok(());
     }
 
@@ -19,7 +19,7 @@ pub async fn on_message(ctx: &Context, msg: &Message, db: &sqlx::SqlitePool) -> 
         .map(|row| (row.get::<f32, _>("speed"), row.get::<f32, _>("freq")))
         .unwrap_or((20.0, 800.0));
 
-    let man = songbird::get(&ctx).await.expect("init songbird").clone();
+    let man = songbird::get(ctx).await.expect("init songbird").clone();
 
     let handler = man.get(msg.guild_id.context("no guild")?);
     if let Some(handler) = handler {

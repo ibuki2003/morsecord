@@ -31,12 +31,12 @@ impl crate::bot::Bot {
         ctx: &Context,
         command: &ApplicationCommandInteraction,
     ) -> anyhow::Result<String> {
-        let ch = get_ch(&command)?;
+        let ch = get_ch(command)?;
         let gid = command.guild_id.context("not in guild")?;
 
-        self.add_call_state(gid.0, command.channel_id.into())?;
+        self.add_call_state(gid.0, command.channel_id)?;
 
-        let man = songbird::get(&ctx).await.expect("init songbird").clone();
+        let man = songbird::get(ctx).await.expect("init songbird").clone();
         let handler = man.join(gid, ch).await;
         handler.1.context("join failed")?;
 
@@ -53,9 +53,9 @@ impl crate::bot::Bot {
         ctx: &Context,
         command: &ApplicationCommandInteraction,
     ) -> anyhow::Result<String> {
-        let man = songbird::get(&ctx).await.expect("init songbird").clone();
+        let man = songbird::get(ctx).await.expect("init songbird").clone();
         let gid = command.guild_id.context("not in guild")?;
-        let cid = command.channel_id;
+        let _cid = command.channel_id;
         let has_handler = man.get(gid).is_some();
 
         self.erase_call_state(gid.0)?;

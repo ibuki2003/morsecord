@@ -11,16 +11,11 @@ use serenity::model::channel::Message;
 
 use anyhow::Context as _;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum BotStateMode {
+    #[default]
     Normal,
     Lesson(Arc<Mutex<crate::modes::lesson::LessonModeState>>),
-}
-
-impl std::default::Default for BotStateMode {
-    fn default() -> Self {
-        BotStateMode::Normal
-    }
 }
 
 impl BotStateMode {

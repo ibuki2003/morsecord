@@ -82,7 +82,7 @@ impl crate::bot::Bot {
             freq_range,
             gen,
         )));
-        crate::modes::lesson::start(&ctx, gid, state.clone())
+        crate::modes::lesson::start(ctx, gid, state.clone())
             .await
             .context("internal error")?;
         self.switch_mode(gid.0, BotStateMode::Lesson(state))?;

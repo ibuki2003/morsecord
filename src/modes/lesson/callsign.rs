@@ -1,10 +1,9 @@
 use crate::modes::lesson::rand_char;
-use anyhow::Context as _;
 
-const ALPHA: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const ALNUM: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-const NUM: &'static str = "0123456789";
-const JA_PRF: &'static str = "AEFGHIJKLMNOPQRS";
+const ALPHA: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const ALNUM: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const NUM: &str = "0123456789";
+const JA_PRF: &str = "AEFGHIJKLMNOPQRS";
 
 pub struct JaCallsignGen;
 impl Iterator for JaCallsignGen {

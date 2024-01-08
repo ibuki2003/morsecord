@@ -51,7 +51,7 @@ impl LessonModeState {
 impl Drop for LessonModeState {
     fn drop(&mut self) {
         log::info!("lesson state dropped, {:?}", self.next_ftr_token);
-        self.next_ftr_token.take().map(|t| t.cancel());
+        if let Some(t) = self.next_ftr_token.take() { t.cancel() }
     }
 }
 
@@ -60,7 +60,7 @@ pub async fn start(
     guild: GuildId,
     state: Arc<Mutex<LessonModeState>>,
 ) -> anyhow::Result<()> {
-    let man = songbird::get(&ctx).await.expect("init songbird").clone();
+    let man = songbird::get(ctx).await.expect("init songbird").clone();
 
     let call = man.get(guild).context("not in call")?;
     play_next(call, state).await?;
@@ -68,13 +68,12 @@ pub async fn start(
 }
 
 pub fn end(state: Arc<Mutex<LessonModeState>>) -> anyhow::Result<()> {
-    state
+    if let Some(t) = state
         .lock()
         .or_else(|_| anyhow::bail!("lock failed"))
         .context("internal error")?
         .next_ftr_token
-        .take()
-        .map(|t| t.cancel());
+        .take() { t.cancel() }
     Ok(())
 }
 
@@ -117,7 +116,7 @@ pub async fn on_message(
         .await
         .context("react failed")?;
 
-        let man = songbird::get(&ctx).await.expect("init songbird").clone();
+        let man = songbird::get(ctx).await.expect("init songbird").clone();
         let call = man
             .get(msg.guild_id.context("not in guild")?)
             .context("not in call")?;
@@ -134,7 +133,7 @@ pub async fn on_message(
 
             if !st.is_advancing {
                 let token = tokio_util::sync::CancellationToken::new();
-                st.next_ftr_token.replace(token.clone()).map(|t| t.cancel());
+                if let Some(t) = st.next_ftr_token.replace(token.clone()) { t.cancel() }
                 st.is_advancing = true;
                 Some(token)
             } else {
@@ -176,11 +175,11 @@ async fn play(
     let s = &st.last_str;
     let s = match s {
         None => return Ok(()),
-        Some(s) => " ".to_string() + &s, // to keep margin between last playback
+        Some(s) => " ".to_string() + s, // to keep margin between last playback
     };
 
     let token = tokio_util::sync::CancellationToken::new();
-    st.next_ftr_token.replace(token.clone()).map(|t| t.cancel());
+    if let Some(t) = st.next_ftr_token.replace(token.clone()) { t.cancel() }
 
     drop(st);
 
@@ -226,7 +225,7 @@ pub async fn play_next(
 
         log::info!("next: {}", next_str);
 
-        state.last_str = Some(next_str.clone());
+        state.last_str = Some(next_str);
         state.last_speed = rand::thread_rng().gen_range(state.speed_range.clone());
         state.last_freq = rand::thread_rng().gen_range(state.freq_range.clone());
         state.answered = false;

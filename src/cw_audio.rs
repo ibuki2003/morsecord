@@ -25,7 +25,7 @@ impl CWAudioPCM {
                 let (l, b) = c;
                 for i in (0..l).rev() {
                     let k = (b & (1 << i)) != 0;
-                    events.push(((dot_length * (if k { 3 } else { 1 })) as usize, true));
+                    events.push((dot_length * (if k { 3 } else { 1 }), true));
                     events.push((dot_length, false));
                 }
                 events.push((dot_length * 2, false));
@@ -85,7 +85,7 @@ impl std::io::Read for CWAudioPCM {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let head = buf.as_ptr();
         let (_, mut s, _) = unsafe { buf.align_to_mut::<f32>() };
-        while self.epos + 1 < self.events.len() && s.len() > 0 {
+        while self.epos + 1 < self.events.len() && !s.is_empty() {
             let (t, on) = self.events[self.epos];
             let t = t - self.spos;
 

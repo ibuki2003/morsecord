@@ -7,7 +7,7 @@ pub struct FileSourceGen {
 const LESSON_TXT_DIR: &str = "./lesson_txt/";
 impl FileSourceGen {
     pub fn new(filename: &str) -> anyhow::Result<Self> {
-        anyhow::ensure!(!filename.contains("/"), "invalid filename");
+        anyhow::ensure!(!filename.contains('/'), "invalid filename");
 
         let p = std::path::Path::new(LESSON_TXT_DIR).join(filename);
 
@@ -15,7 +15,7 @@ impl FileSourceGen {
             let e = std::fs::read_dir(LESSON_TXT_DIR)
                 .context("error: lesson_txt directory not found.")?
                 .map(|x| x.unwrap().file_name().to_str().unwrap().to_owned())
-                .filter(|x| !x.starts_with("."))
+                .filter(|x| !x.starts_with('.'))
                 .collect::<Vec<_>>()
                 .join(", ");
 

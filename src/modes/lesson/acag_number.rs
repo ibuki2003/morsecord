@@ -315,6 +315,12 @@ impl ACAGNumberGen {
     }
 }
 
+impl Default for ACAGNumberGen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn filter_and_to_string_numbers(
     nrs: Vec<RangeInclusive<i32>>,
     filter_nrs: &[i32],
@@ -323,7 +329,7 @@ fn filter_and_to_string_numbers(
     nrs.into_iter()
         .flat_map(|nrs| {
             nrs.filter(|x| !filter_nrs.contains(x))
-                .map(|x| to_string(x))
+                .map(&to_string)
         })
         .collect()
 }
