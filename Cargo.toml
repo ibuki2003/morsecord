@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0.71"
 chrono = "0.4.26"
 fern = "0.6.2"
+kanaria = "0.2.0"
 log = "0.4.19"
 rand = "0.8.5"
 serde = { version = "1.0.167", features = ["derive"] }
@@ -18,4 +19,5 @@ songbird = { version = "0.3.2", features = ["yt-dlp"] }
 sqlx = { version = "0.7.0", features = ["sqlite", "runtime-tokio"], default-features = false }
 tokio = { version = "1.29.1", features = ["full"] }
 tokio-util = "0.7.8"
+unicode-normalization = "0.1.22"
 wav = "1.0.0"

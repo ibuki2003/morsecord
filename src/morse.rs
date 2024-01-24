@@ -1,3 +1,6 @@
+use unicode_normalization::UnicodeNormalization;
+use kanaria::string::UCSStr;
+
 /*
     returns (length, binary expression)
     0 = dot, 1 = dash; MSB first
@@ -107,6 +110,8 @@ pub fn get_morse(c: char) -> (u8, u8) {
         'ヱ' => (5, 0b01100),
         'ヲ' => (4, 0b0111),
         'ン' => (5, 0b01010),
+        '\u{3099}' => (2, 0b00), // COMBINING dakuten
+        '\u{309A}' => (5, 0b00110), // COMBINING handakuten
         '゛' => (2, 0b00),
         '゜' => (5, 0b00110),
         'ー' => (5, 0b01101),
@@ -118,6 +123,13 @@ pub fn get_morse(c: char) -> (u8, u8) {
 }
 
 pub fn get_morse_str(s: String) -> Vec<(u8, u8)> {
+    let s = UCSStr::from_str(&s)
+        .upper_case()
+        .katakana()
+        .to_string();
+
+    let s = s.nfkd().collect::<String>();
+
     let mut v = Vec::<(u8, u8)>::new();
     for c in s.chars() {
         let m = get_morse(c);
@@ -175,6 +187,22 @@ mod tests {
                 (2, 0b01),
                 (4, 0b0101),
                 (4, 0b1000),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_morse_normalize() {
+        assert_eq!(
+            get_morse_str("がガパAＡaａ".to_string()),
+            [
+                (4, 0b0100), (2, 0b00),
+                (4, 0b0100), (2, 0b00),
+                (4, 0b1000), (5, 0b00110),
+                (2, 0b01),
+                (2, 0b01),
+                (2, 0b01),
+                (2, 0b01),
             ]
         );
     }
