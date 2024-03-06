@@ -87,6 +87,12 @@ pub fn end(state: Arc<Mutex<LessonModeState>>) -> anyhow::Result<String> {
         t.cancel()
     }
 
+    // add last one
+    let c = st.current_repeat;
+    if c != 0 {
+        st.repeat_counts.push(c);
+    }
+
     if st.repeat_counts.is_empty() {
         return Ok("bye!".to_owned());
     }
