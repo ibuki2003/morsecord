@@ -327,10 +327,7 @@ fn filter_and_to_string_numbers(
     to_string: impl Fn(i32) -> String,
 ) -> Vec<String> {
     nrs.into_iter()
-        .flat_map(|nrs| {
-            nrs.filter(|x| !filter_nrs.contains(x))
-                .map(&to_string)
-        })
+        .flat_map(|nrs| nrs.filter(|x| !filter_nrs.contains(x)).map(&to_string))
         .collect()
 }
 

@@ -99,7 +99,8 @@ impl Bot {
             &mut mode,
         );
 
-        let r = mode.lock()
+        let r = mode
+            .lock()
             .or_else(|_| anyhow::bail!("lock failed"))
             .context("internal error")?
             .discard()

@@ -1,5 +1,5 @@
-use unicode_normalization::UnicodeNormalization;
 use kanaria::string::UCSStr;
+use unicode_normalization::UnicodeNormalization;
 
 /*
     returns (length, binary expression)
@@ -110,7 +110,7 @@ pub fn get_morse(c: char) -> (u8, u8) {
         'ヱ' => (5, 0b01100),
         'ヲ' => (4, 0b0111),
         'ン' => (5, 0b01010),
-        '\u{3099}' => (2, 0b00), // COMBINING dakuten
+        '\u{3099}' => (2, 0b00),    // COMBINING dakuten
         '\u{309A}' => (5, 0b00110), // COMBINING handakuten
         '゛' => (2, 0b00),
         '゜' => (5, 0b00110),
@@ -123,10 +123,7 @@ pub fn get_morse(c: char) -> (u8, u8) {
 }
 
 pub fn get_morse_str(s: String) -> Vec<(u8, u8)> {
-    let s = UCSStr::from_str(&s)
-        .upper_case()
-        .katakana()
-        .to_string();
+    let s = UCSStr::from_str(&s).upper_case().katakana().to_string();
 
     let s = s.nfkd().collect::<String>();
 
@@ -141,7 +138,6 @@ pub fn get_morse_str(s: String) -> Vec<(u8, u8)> {
     v
 }
 
-
 pub fn dot_time(wpm: f32) -> std::time::Duration {
     std::time::Duration::from_secs_f32(1.2 / wpm)
 }
@@ -154,11 +150,7 @@ mod tests {
     fn test_morse_normal() {
         assert_eq!(
             get_morse_str("ABC".to_string()),
-            [
-                (2, 0b01),
-                (4, 0b1000),
-                (4, 0b1010),
-            ]
+            [(2, 0b01), (4, 0b1000), (4, 0b1010),]
         );
     }
 
@@ -183,11 +175,7 @@ mod tests {
     fn test_morse_kana() {
         assert_eq!(
             get_morse_str("イロハ".to_string()),
-            [
-                (2, 0b01),
-                (4, 0b0101),
-                (4, 0b1000),
-            ]
+            [(2, 0b01), (4, 0b0101), (4, 0b1000),]
         );
     }
 
@@ -196,9 +184,12 @@ mod tests {
         assert_eq!(
             get_morse_str("がガパAＡaａ".to_string()),
             [
-                (4, 0b0100), (2, 0b00),
-                (4, 0b0100), (2, 0b00),
-                (4, 0b1000), (5, 0b00110),
+                (4, 0b0100),
+                (2, 0b00),
+                (4, 0b0100),
+                (2, 0b00),
+                (4, 0b1000),
+                (5, 0b00110),
                 (2, 0b01),
                 (2, 0b01),
                 (2, 0b01),

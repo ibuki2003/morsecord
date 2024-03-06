@@ -114,12 +114,7 @@ pub fn end(state: Arc<Mutex<LessonModeState>>) -> anyhow::Result<String> {
     v.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
 
     for (name, (correct, first)) in v {
-        result_text.push_str(&format!(
-            "{}: {} / {}\n",
-            name.mention(),
-            first,
-            correct,
-        ));
+        result_text.push_str(&format!("{}: {} / {}\n", name.mention(), first, correct,));
     }
 
     result_text.push_str("\nGood job!");
