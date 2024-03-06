@@ -95,12 +95,12 @@ impl crate::bot::Bot {
         _ctx: &Context,
         command: &ApplicationCommandInteraction,
     ) -> anyhow::Result<String> {
-        self.switch_mode(
+        let r = self.switch_mode(
             command.guild_id.context("no guild")?.0,
             BotStateMode::Normal,
         )?;
 
-        Ok("good job!".to_string())
+        Ok(r)
     }
 
     pub async fn register_commands_cw_lesson(&self, ctx: &Context) -> anyhow::Result<()> {

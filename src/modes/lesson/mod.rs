@@ -4,14 +4,15 @@ pub mod callsign;
 pub mod file;
 
 use anyhow::Context as _;
+use std::collections::HashMap;
 use std::iter::Iterator;
 use std::sync::{Arc, Mutex};
 
 use rand::Rng;
 use serenity::model::channel::Message;
 use serenity::model::channel::ReactionType;
-use serenity::model::prelude::GuildId;
-use serenity::prelude::Context;
+use serenity::model::prelude::{GuildId, UserId};
+use serenity::prelude::{Context, Mentionable};
 
 pub struct LessonModeState {
     speed_range: std::ops::RangeInclusive<f32>,
@@ -26,6 +27,10 @@ pub struct LessonModeState {
     answered: bool, // to check 1st AC
     is_advancing: bool,
     next_ftr_token: Option<tokio_util::sync::CancellationToken>,
+
+    current_repeat: usize,
+    repeat_counts: Vec<usize>,
+    user_count: HashMap<UserId, (usize, usize)>, // (correct, 1st)
 }
 
 impl LessonModeState {
@@ -44,6 +49,10 @@ impl LessonModeState {
             answered: false,
             is_advancing: false,
             next_ftr_token: None,
+
+            current_repeat: 0,
+            repeat_counts: Vec::new(),
+            user_count: HashMap::new(),
         }
     }
 }
@@ -51,7 +60,9 @@ impl LessonModeState {
 impl Drop for LessonModeState {
     fn drop(&mut self) {
         log::info!("lesson state dropped, {:?}", self.next_ftr_token);
-        if let Some(t) = self.next_ftr_token.take() { t.cancel() }
+        if let Some(t) = self.next_ftr_token.take() {
+            t.cancel()
+        }
     }
 }
 
@@ -67,14 +78,47 @@ pub async fn start(
     Ok(())
 }
 
-pub fn end(state: Arc<Mutex<LessonModeState>>) -> anyhow::Result<()> {
-    if let Some(t) = state
+pub fn end(state: Arc<Mutex<LessonModeState>>) -> anyhow::Result<String> {
+    let mut st = state
         .lock()
         .or_else(|_| anyhow::bail!("lock failed"))
-        .context("internal error")?
-        .next_ftr_token
-        .take() { t.cancel() }
-    Ok(())
+        .context("internal error")?;
+    if let Some(t) = st.next_ftr_token.take() {
+        t.cancel()
+    }
+
+    if st.repeat_counts.is_empty() {
+        return Ok("bye!".to_owned());
+    }
+
+    let mut result_text = format!(
+        concat! {
+            "# Lesson Result\n",
+            "\n",
+            "total questions: {}\n",
+            "average retry: {:.2}\n",
+            "\n",
+            "(🥇 / ⭕)\n",
+        },
+        st.repeat_counts.len(),
+        st.repeat_counts.iter().sum::<usize>() as f32 / st.repeat_counts.len() as f32
+    );
+
+    let mut v = st.user_count.iter().collect::<Vec<_>>();
+    v.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
+
+    for (name, (correct, first)) in v {
+        result_text.push_str(&format!(
+            "{}: {} / {}\n",
+            name.mention(),
+            first,
+            correct,
+        ));
+    }
+
+    result_text.push_str("\nGood job!");
+
+    Ok(result_text)
 }
 
 pub async fn on_message(
@@ -87,6 +131,9 @@ pub async fn on_message(
             .lock()
             .or_else(|_| anyhow::bail!("lock failed"))
             .context("internal error")?;
+
+        // always insert
+        st.user_count.entry(msg.author.id).or_insert((0, 0));
 
         let s = msg.content.to_uppercase();
 
@@ -116,6 +163,19 @@ pub async fn on_message(
         .await
         .context("react failed")?;
 
+        {
+            let mut st = state
+                .lock()
+                .or_else(|_| anyhow::bail!("lock failed"))
+                .context("internal error")?;
+
+            let c = st.user_count.entry(msg.author.id).or_insert((0, 0));
+            c.0 += 1;
+            if !answered {
+                c.1 += 1;
+            }
+        }
+
         let man = songbird::get(ctx).await.expect("init songbird").clone();
         let call = man
             .get(msg.guild_id.context("not in guild")?)
@@ -133,7 +193,9 @@ pub async fn on_message(
 
             if !st.is_advancing {
                 let token = tokio_util::sync::CancellationToken::new();
-                if let Some(t) = st.next_ftr_token.replace(token.clone()) { t.cancel() }
+                if let Some(t) = st.next_ftr_token.replace(token.clone()) {
+                    t.cancel()
+                }
                 st.is_advancing = true;
                 Some(token)
             } else {
@@ -179,7 +241,9 @@ async fn play(
     };
 
     let token = tokio_util::sync::CancellationToken::new();
-    if let Some(t) = st.next_ftr_token.replace(token.clone()) { t.cancel() }
+    if let Some(t) = st.next_ftr_token.replace(token.clone()) {
+        t.cancel()
+    }
 
     drop(st);
 
@@ -192,6 +256,14 @@ async fn play(
                 let mut handler = call.lock().await;
                 let source = crate::cw_audio::CWAudioPCM::new(s.clone(), speed, freq).to_input();
                 handler.play_only_source(source);
+
+                state
+                    .lock()
+                    .or_else(|_| anyhow::bail!("lock failed"))
+                    .map(|mut st| {
+                        st.current_repeat += 1;
+                    })
+                    .ok();
             }
 
             tokio::select! {
@@ -224,6 +296,12 @@ pub async fn play_next(
         };
 
         log::info!("next: {}", next_str);
+
+        let c = state.current_repeat;
+        if c != 0 {
+            state.repeat_counts.push(c);
+        }
+        state.current_repeat = 0;
 
         state.last_str = Some(next_str);
         state.last_speed = rand::thread_rng().gen_range(state.speed_range.clone());

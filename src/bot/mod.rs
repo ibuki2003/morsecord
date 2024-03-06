@@ -21,12 +21,12 @@ pub enum BotStateMode {
 impl BotStateMode {
     // NOTE: call this when you want to discard the state
     // Drop trait is not implemented because BotStateMode is cloned at Bot::message. :(
-    pub fn discard(&self) {
+    pub fn discard(&self) -> Option<String> {
         match self {
-            BotStateMode::Normal => {}
+            BotStateMode::Normal => None,
             BotStateMode::Lesson(s) => {
                 log::info!("terminating callsign lesson");
-                let _ = crate::modes::lesson::end(s.clone());
+                crate::modes::lesson::end(s.clone()).ok()
             }
         }
     }
@@ -85,7 +85,7 @@ impl Bot {
         Ok(())
     }
 
-    pub fn switch_mode(&self, guild_id: u64, mode: BotStateMode) -> anyhow::Result<()> {
+    pub fn switch_mode(&self, guild_id: u64, mode: BotStateMode) -> anyhow::Result<String> {
         let mut mode = Arc::new(Mutex::new(mode));
         std::mem::swap(
             &mut self
@@ -99,12 +99,13 @@ impl Bot {
             &mut mode,
         );
 
-        mode.lock()
+        let r = mode.lock()
             .or_else(|_| anyhow::bail!("lock failed"))
             .context("internal error")?
-            .discard();
+            .discard()
+            .unwrap_or_else(|| "".to_string());
 
-        Ok(())
+        Ok(r)
     }
 
     pub fn get_call_txt_ch(&self, guild_id: u64) -> anyhow::Result<serenity::model::id::ChannelId> {
@@ -180,6 +181,10 @@ impl EventHandler for Bot {
                 log::error!("{:#}", e);
                 e.to_string()
             });
+
+            if content.is_empty() {
+                return;
+            }
 
             if let Err(why) = command
                 .create_interaction_response(&ctx.http, |response| {
