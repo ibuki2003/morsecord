@@ -2,6 +2,7 @@ pub mod acag_number;
 pub mod allja_number;
 pub mod callsign;
 pub mod file;
+mod number;
 
 use anyhow::Context as _;
 use std::collections::HashMap;
@@ -14,15 +15,41 @@ use serenity::model::channel::ReactionType;
 use serenity::model::prelude::{GuildId, UserId};
 use serenity::prelude::{Context, Mentionable};
 
+pub trait LessonAnswer: Send {
+    // given uppercase
+    fn check(&self, s: &str) -> bool;
+
+    fn into_str<'a>(&'a self) -> &'a str;
+
+    fn clone_boxed(&self) -> Box<dyn LessonAnswer>;
+}
+
+impl LessonAnswer for String {
+    fn check(&self, s: &str) -> bool {
+        self == s
+    }
+
+    fn into_str(&self) -> &str {
+        &self
+    }
+
+    fn clone_boxed(&self) -> Box<dyn LessonAnswer> {
+        Box::new(self.clone())
+    }
+}
+
+pub type LessonAnswerBox = Box<dyn LessonAnswer>;
+pub type LessonGen = Box<dyn Iterator<Item = LessonAnswerBox> + Send>;
+
 pub struct LessonModeState {
     speed_range: std::ops::RangeInclusive<f32>,
     freq_range: std::ops::RangeInclusive<f32>,
 
-    last_str: Option<String>,
+    last_ans: Option<Box<dyn LessonAnswer>>,
     last_freq: f32,
     last_speed: f32,
 
-    gen: Box<dyn Iterator<Item = String> + Send>,
+    gen: LessonGen,
 
     answered: bool, // to check 1st AC
     is_advancing: bool,
@@ -37,12 +64,12 @@ impl LessonModeState {
     pub fn new(
         speed_range: std::ops::RangeInclusive<f32>,
         freq_range: std::ops::RangeInclusive<f32>,
-        gen: Box<dyn Iterator<Item = String> + Send>,
+        gen: LessonGen,
     ) -> Self {
         Self {
             speed_range,
             freq_range,
-            last_str: None,
+            last_ans: None,
             last_freq: 0.,
             last_speed: 0.,
             gen,
@@ -138,13 +165,14 @@ pub async fn on_message(
 
         let s = msg.content.to_uppercase();
 
-        let ans = match &st.last_str {
+        let ans = match &st.last_ans {
             None => return Ok(()),
-            Some(ans) => ans.to_uppercase(),
+            // Some(ans) => (*ans).clone(),
+            Some(ans) => ans.clone_boxed(),
         };
 
         let answered = st.answered;
-        if s == ans {
+        if ans.check(&s) {
             st.answered = true;
         }
 
@@ -152,7 +180,7 @@ pub async fn on_message(
         (s, ans, answered)
     };
 
-    if s == ans {
+    if ans.check(&s) {
         msg.react(
             &ctx.http,
             if answered {
@@ -216,7 +244,7 @@ pub async fn on_message(
                 Ok::<(), anyhow::Error>(())
             });
         }
-    } else if s == "||".to_owned() + &ans + "||" {
+    } else if s.starts_with("||") && s.ends_with("||") && ans.check(&s[2..s.len() - 2]) {
         msg.react(&ctx.http, ReactionType::from('⭕'))
             .await
             .context("react failed")?;
@@ -235,10 +263,10 @@ async fn play(
     let mut st = state.lock().or_else(|_| anyhow::bail!("lock failed"))?;
     let speed = st.last_speed;
     let freq = st.last_freq;
-    let s = &st.last_str;
+    let s = &st.last_ans;
     let s = match s {
         None => return Ok(()),
-        Some(s) => " ".to_string() + s, // to keep margin between last playback
+        Some(s) => " ".to_string() + s.into_str(), // to keep margin between last playback
     };
 
     let token = tokio_util::sync::CancellationToken::new();
@@ -296,7 +324,7 @@ pub async fn play_next(
             }
         };
 
-        log::info!("next: {}", next_str);
+        log::info!("next: {}", next_str.into_str());
 
         let c = state.current_repeat;
         if c != 0 {
@@ -304,7 +332,7 @@ pub async fn play_next(
         }
         state.current_repeat = 0;
 
-        state.last_str = Some(next_str);
+        state.last_ans = Some(next_str);
         state.last_speed = rand::thread_rng().gen_range(state.speed_range.clone());
         state.last_freq = rand::thread_rng().gen_range(state.freq_range.clone());
         state.answered = false;

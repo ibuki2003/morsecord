@@ -1,6 +1,6 @@
-use std::ops::RangeInclusive;
-
+use super::{number::LessonAnswerContestNumber, LessonAnswerBox};
 use rand::{self, Rng};
+use std::ops::RangeInclusive;
 pub struct ACAGNumberGen {
     acag_nr: Vec<String>,
 }
@@ -332,18 +332,20 @@ fn filter_and_to_string_numbers(
 }
 
 impl Iterator for ACAGNumberGen {
-    type Item = String;
+    type Item = LessonAnswerBox;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut rng = rand::thread_rng();
         let idx = rng.gen_range(0..self.acag_nr.len());
         let s = self.acag_nr[idx].clone();
 
-        Some(match rand::random::<u8>() {
+        let s = match rand::random::<u8>() {
             0..=99 => s + "H",
             100..=199 => s + "M",
             200..=224 => s + "L",
             225..=255 => s + "P",
-        })
+        };
+
+        Some(Box::new(LessonAnswerContestNumber::new_5nn(&s)))
     }
 }

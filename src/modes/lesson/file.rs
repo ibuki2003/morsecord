@@ -1,6 +1,8 @@
 use anyhow::Context;
 use rand::seq::SliceRandom;
 
+use super::LessonAnswerBox;
+
 pub struct FileSourceGen {
     data: Vec<String>,
 }
@@ -29,10 +31,11 @@ impl FileSourceGen {
 }
 
 impl Iterator for FileSourceGen {
-    type Item = String;
+    type Item = LessonAnswerBox;
 
-    fn next(&mut self) -> Option<String> {
+    fn next(&mut self) -> Option<Self::Item> {
         let mut rng = rand::thread_rng();
-        self.data.choose(&mut rng).cloned()
+        let v = self.data.choose(&mut rng)?;
+        Some(Box::new(v.clone()))
     }
 }
