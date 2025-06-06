@@ -3,7 +3,7 @@ use songbird::input::{reader::MediaSource, Input};
 pub struct CWAudioPCM {
     epos: usize,                // current position in the events
     spos: usize,                // current position in a event
-    events: Vec<(usize, bool)>, // (pos(samples), on)
+    events: Vec<(usize, bool)>, // (length in samples, ON/OFF)
 
     omega: f32, // angular frequency
 }
