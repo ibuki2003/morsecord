@@ -93,10 +93,28 @@ impl std::io::Read for CWAudioPCM {
             let of = s.len() <= c;
 
             if on {
-                s[..c]
-                    .iter_mut()
-                    .enumerate()
-                    .for_each(|(i, x)| *x = (self.omega * (self.spos + i) as f32).sin());
+                // Envelope parameters
+                const SAMPLE_RATE: usize = songbird::constants::SAMPLE_RATE_RAW as usize;
+                const ENV_MS: f32 = 5.0; // envelope length in ms
+                const ENV_LEN: usize = ((ENV_MS / 1000.0) * SAMPLE_RATE as f32) as usize;
+                let tone_len = t;
+                let spos = self.spos;
+                for i in 0..c {
+                    let pos = spos + i;
+                    // Envelope gain (0.0~1.0), using cosine shape
+                    let gain = if pos < ENV_LEN {
+                        // Fade in (cosine)
+                        let theta = (pos as f32 / ENV_LEN as f32) * std::f32::consts::PI;
+                        0.5 * (1.0 - (theta).cos())
+                    } else if pos + ENV_LEN > tone_len {
+                        // Fade out (cosine)
+                        let theta = ((tone_len - pos) as f32 / ENV_LEN as f32) * std::f32::consts::PI;
+                        0.5 * (1.0 - (theta).cos())
+                    } else {
+                        1.0
+                    };
+                    s[i] = gain * (self.omega * (self.spos + i) as f32).sin();
+                }
             } else {
                 s[..c].iter_mut().for_each(|x| *x = 0.);
             }
