@@ -9,7 +9,7 @@ pub struct CWAudioPCM {
     srate: usize, // sample rate
 }
 
-const ENV_MS: f32 = 5.0; // envelope length in ms
+const ENV_MS: f32 = 10.0; // envelope length in ms
 
 impl CWAudioPCM {
     pub fn new(str: String, wpm: f32, freq: f32, srate: usize) -> Self {
