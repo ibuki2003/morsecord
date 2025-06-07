@@ -89,35 +89,36 @@ impl std::io::Read for CWAudioPCM {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let head = buf.as_ptr();
         let (_, mut s, _) = unsafe { buf.align_to_mut::<f32>() };
+
+        // envelope length in samples
+        let env_len: usize = ((ENV_MS / 1000.0) * self.srate as f32) as usize;
+
         while self.epos + 1 < self.events.len() && !s.is_empty() {
-            let (t, on) = self.events[self.epos];
-            let t = t - self.spos;
+            let (length, on) = self.events[self.epos];
+            let t = length - self.spos;
 
             let c = std::cmp::min(s.len(), t);
             let of = s.len() <= c;
 
             if on {
-                // Envelope parameters
-                let env_len: usize = ((ENV_MS / 1000.0) * self.srate as f32) as usize;
-                let tone_len = t;
                 let spos = self.spos;
-                for i in 0..c {
+                s[..c].iter_mut().enumerate().for_each(|(i, x)| {
                     let pos = spos + i;
                     // Envelope gain (0.0~1.0), using cosine shape
                     let gain = if pos < env_len {
                         // Fade in (cosine)
                         let theta = (pos as f32 / env_len as f32) * std::f32::consts::PI;
                         0.5 * (1.0 - (theta).cos())
-                    } else if pos + env_len > tone_len {
+                    } else if pos + env_len > length {
                         // Fade out (cosine)
-                        let theta =
-                            ((tone_len - pos) as f32 / env_len as f32) * std::f32::consts::PI;
+                        let rem = length.saturating_sub(pos);
+                        let theta = (rem as f32 / env_len as f32) * std::f32::consts::PI;
                         0.5 * (1.0 - (theta).cos())
                     } else {
                         1.0
                     };
-                    s[i] = gain * (self.omega * (self.spos + i) as f32).sin();
-                }
+                    *x = gain * (self.omega * (self.spos + i) as f32).sin();
+                });
             } else {
                 s[..c].iter_mut().for_each(|x| *x = 0.);
             }
