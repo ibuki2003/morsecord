@@ -14,6 +14,7 @@ use serenity::model::channel::Message;
 use serenity::model::channel::ReactionType;
 use serenity::model::prelude::{GuildId, UserId};
 use serenity::prelude::{Context, Mentionable};
+use songbird::constants::SAMPLE_RATE_RAW;
 
 pub trait LessonAnswer: Send {
     // given uppercase
@@ -283,7 +284,9 @@ async fn play(
         loop {
             {
                 let mut handler = call.lock().await;
-                let source = crate::cw_audio::CWAudioPCM::new(s.clone(), speed, freq).to_input();
+                let source =
+                    crate::cw_audio::CWAudioPCM::new(s.clone(), speed, freq, SAMPLE_RATE_RAW)
+                        .to_input();
                 handler.play_only_source(source);
 
                 state

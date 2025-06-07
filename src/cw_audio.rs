@@ -5,11 +5,14 @@ pub struct CWAudioPCM {
     spos: usize,                // current position in a event
     events: Vec<(usize, bool)>, // (length in samples, ON/OFF)
 
-    omega: f32, // angular frequency
+    omega: f32,   // angular frequency
+    srate: usize, // sample rate
 }
 
+const ENV_MS: f32 = 5.0; // envelope length in ms
+
 impl CWAudioPCM {
-    pub fn new(str: String, wpm: f32, freq: f32) -> Self {
+    pub fn new(str: String, wpm: f32, freq: f32, srate: usize) -> Self {
         let dot_length = (crate::morse::dot_time(wpm).as_secs_f32()
             * songbird::constants::SAMPLE_RATE_RAW as f32) as usize;
 
@@ -37,7 +40,8 @@ impl CWAudioPCM {
             spos: 0,
             events,
 
-            omega: 2.0 * std::f32::consts::PI * freq / songbird::constants::SAMPLE_RATE_RAW as f32,
+            omega: 2.0 * std::f32::consts::PI * freq / srate as f32,
+            srate,
         }
     }
 
@@ -94,21 +98,20 @@ impl std::io::Read for CWAudioPCM {
 
             if on {
                 // Envelope parameters
-                const SAMPLE_RATE: usize = songbird::constants::SAMPLE_RATE_RAW as usize;
-                const ENV_MS: f32 = 5.0; // envelope length in ms
-                const ENV_LEN: usize = ((ENV_MS / 1000.0) * SAMPLE_RATE as f32) as usize;
+                let env_len: usize = ((ENV_MS / 1000.0) * self.srate as f32) as usize;
                 let tone_len = t;
                 let spos = self.spos;
                 for i in 0..c {
                     let pos = spos + i;
                     // Envelope gain (0.0~1.0), using cosine shape
-                    let gain = if pos < ENV_LEN {
+                    let gain = if pos < env_len {
                         // Fade in (cosine)
-                        let theta = (pos as f32 / ENV_LEN as f32) * std::f32::consts::PI;
+                        let theta = (pos as f32 / env_len as f32) * std::f32::consts::PI;
                         0.5 * (1.0 - (theta).cos())
-                    } else if pos + ENV_LEN > tone_len {
+                    } else if pos + env_len > tone_len {
                         // Fade out (cosine)
-                        let theta = ((tone_len - pos) as f32 / ENV_LEN as f32) * std::f32::consts::PI;
+                        let theta =
+                            ((tone_len - pos) as f32 / env_len as f32) * std::f32::consts::PI;
                         0.5 * (1.0 - (theta).cos())
                     } else {
                         1.0
