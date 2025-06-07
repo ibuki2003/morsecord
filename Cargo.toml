@@ -21,3 +21,4 @@ tokio = { version = "1.29.1", features = ["full"] }
 tokio-util = "0.7.8"
 unicode-normalization = "0.1.22"
 wav = "1.0.0"
+hound = "3.5.1"
