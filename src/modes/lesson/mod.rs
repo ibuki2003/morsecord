@@ -2,6 +2,7 @@ pub mod acag_number;
 pub mod allja_number;
 pub mod callsign;
 pub mod file;
+pub mod japanese;
 mod number;
 
 use anyhow::Context as _;
