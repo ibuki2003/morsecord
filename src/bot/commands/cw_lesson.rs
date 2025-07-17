@@ -17,10 +17,11 @@ pub fn get_lesson_gen(probset: &str) -> anyhow::Result<LessonGen> {
         "file" => Box::new(lesson::file::FileSourceGen::new(probset_args_str)?),
         "nr_allja" => Box::new(lesson::allja_number::AllJANumberGen::new()),
         "nr_acag" => Box::new(lesson::acag_number::ACAGNumberGen::new()),
+        "rand5_jp" => Box::new(lesson::japanese::JapaneseFiveCharGen {}),
         _ => {
             anyhow::bail!(
                 "unknown probset.\n".to_owned()
-                    + "available selections are: call_ja, file, nr_allja, nr_acag"
+                    + "available selections are: call_ja, file, nr_allja, nr_acag, rand5_jp"
             )
         }
     };
