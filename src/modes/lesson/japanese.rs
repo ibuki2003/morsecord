@@ -1,8 +1,48 @@
-use super::LessonAnswerBox;
+use super::{LessonAnswer, LessonAnswerBox};
+use kanaria::string::UCSStr;
 use rand::Rng;
+use unicode_normalization::UnicodeNormalization;
 
 // カタカナ（清音、濁音、半濁音を含む）
 const KATAKANA: &str = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ";
+
+pub struct NormalizedJapaneseAnswer {
+    original: String,
+    pub(crate) normalized: String,
+}
+
+impl NormalizedJapaneseAnswer {
+    pub fn new(text: String) -> Self {
+        let normalized = normalize_japanese(&text);
+        Self {
+            original: text,
+            normalized,
+        }
+    }
+}
+
+impl LessonAnswer for NormalizedJapaneseAnswer {
+    fn check(&self, s: &str) -> bool {
+        let normalized_input = normalize_japanese(s);
+        self.normalized == normalized_input
+    }
+
+    fn into_str(&self) -> &str {
+        &self.original
+    }
+
+    fn clone_boxed(&self) -> Box<dyn LessonAnswer> {
+        Box::new(Self {
+            original: self.original.clone(),
+            normalized: self.normalized.clone(),
+        })
+    }
+}
+
+fn normalize_japanese(s: &str) -> String {
+    let s = UCSStr::from_str(s).upper_case().katakana().to_string();
+    s.nfkd().collect::<String>()
+}
 
 pub struct JapaneseFiveCharGen;
 
@@ -25,7 +65,7 @@ impl Iterator for JapaneseFiveCharGen {
             result.push(Self::random_char());
         }
 
-        Some(Box::new(result))
+        Some(Box::new(NormalizedJapaneseAnswer::new(result)))
     }
 }
 
